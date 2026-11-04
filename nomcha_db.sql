@@ -46,7 +46,7 @@ INSERT INTO `menu_categories` (`category_id`, `parent_id`, `name`, `description`
 (1, NULL, 'Korean Fried Chicken Racks', 'Our signature double-fried Korean Fried Chicken, perfectly glazed in your favorite flavor and served on a rack. Choose from 3, 6, or 8 pieces.', 1),
 (2, NULL, 'Group Meals', NULL, 2),
 (3, 2, 'Korean Feast', 'Choose the Korean Feast that fits your cravings. Feasts are available for different group sizes.', 1),
-(4, 2, 'Bonchon-To-Share', 'A convenient box with noodles and your choice of viand or sides.', 2),
+(4, 2, 'Nomcha-To-Share', 'A convenient box with noodles and your choice of viand or sides.', 2),
 (5, NULL, 'Korean Fried Chicken', NULL, 3),
 (6, NULL, 'Beef', 'Bonchon beef dishes prepared with Korean spices and seasonings.', 4),
 (7, NULL, 'Seafood', 'Crispy fish favorites and satisfying seafood combinations.', 5),
@@ -97,13 +97,16 @@ INSERT INTO `menu_items` (`category_id`, `name`, `description`, `price`, `image_
 (1, 'Crunchy Garlic', 'A honey-kissed glaze with salty undertones, finished with crunchy fried garlic.', NULL, 'https://bonchon.com.ph/storage/menu/t6hvlzCKpH4lRxfFmAoLjZp7I5CdcMH9ujZkHO3b.webp', 5),
 (1, 'Golden Crunch', 'Crispy, flavorful chicken with a satisfying crunch in every bite.', NULL, 'https://bonchon.com.ph/storage/menu/0FJIsACdyipkh9JuOrKdHI7WSQkFjAcrXH0IVXVi.png', 6),
 (1, 'Snow Cheese', 'A sweet, creamy, salty, and onion-flavored coating with parsley.', NULL, 'https://bonchon.com.ph/storage/menu/CWmrkdbVFqi2gVa7yadKxLYNYgK9F5tXmNY1x9mW.webp', 7),
+(1, '8pc Chikin Rack Fanverse Meal', 'Build your Fanverse Meal with crispy Chikin Rack, your choice of chicken flavors, sides, and a Pepsi.', 828.00, 'https://images.tablevibestaticassets.co/usdp8458h8l9mvqk3h7159g6zcw2', 8),
+(1, '6pc Chikin Rack Fanverse Meal', 'Build your Fanverse Meal with crispy Chikin Rack, your choice of chicken flavors, sides, and a Pepsi.', 649.00, 'https://images.tablevibestaticassets.co/8xotaifmlsk8jo5xh8ptf5x54qmj', 9),
+(1, '3pc Chikin Rack Fanverse Meal', 'Build your Fanverse Meal with crispy Chikin Rack, your choice of chicken flavors, sides, and a Pepsi.', 334.00, 'https://images.tablevibestaticassets.co/tbedk2l1mx33an049vqed7y7kil6', 10),
 (3, 'Feast Good for 4-6', '8 pieces Bonchon Korean Fried Chicken, 2 regular Chapchae, 2 Kimchi Coleslaw, 4 cups rice, 6 fried tteokbokki sticks, and 1L iced tea.', NULL, 'https://bonchon.com.ph/storage/menu/vdcKFqxJI1CZ9ACb0UMtkRp6UAoGKallB4jn9geE.png', 1),
 (3, 'Chicken Good for 4', '8 pieces Bonchon Korean Fried Chicken, 1 regular Chapchae, 2 regular K-Fries, 4 cups white rice, and 4 cups of your drink of choice.', NULL, 'https://bonchon.com.ph/storage/menu/2qqloMkJWp9Ul3BSzw5pa6ES75rgWmbe7Vo2buSj.png', 2),
 (3, 'Chicken Good for 3', '6 pieces Bonchon Korean Fried Chicken, 1 regular Chapchae, 3 cups white rice, and 3 cups of your drink of choice.', NULL, 'https://bonchon.com.ph/storage/menu/49YxynJGgT4yHZXbIKvhqOR1r5S9FJYF8BHWQ4AL.png', 3),
 (3, 'Fish N'' Chix Good for 3', '3 pieces crispy glazed fish, 2 pieces Bonchon Korean Fried Chicken, 6 Korean Mandu, 3 cups white rice, and 3 drinks.', NULL, 'https://bonchon.com.ph/storage/menu/z7tAO6hyVmoE475mhbc5bGufEXzpUIQjNymbtogA.png', 4),
-(4, 'BTS Korean Fried Chicken', '6 pieces Korean Fried Chicken and 3 servings of Chapchae in one box.', NULL, 'https://bonchon.com.ph/storage/menu/AaHq4eMfEgNiSPrltNbyUBwpcxmWgrlSL9Dfnl4m.webp', 1),
-(4, 'BTS Bonless Chikin', 'Large Bonless Chikin complemented by 3 servings of Chapchae.', 649.00, 'https://bonchon.com.ph/storage/menu/Qkhxn8KnBhAV5ovkV50RlZDhVySIZzcLOX0WO0Zz.webp', 2),
-(4, 'BTS Bonless Chikin & Rosébokki', 'Rosébokki paired with a generous serving of Bonless Chicken in your favorite glaze.', 1149.00, 'https://bonchon.com.ph/storage/menu/z9dV5W53AT07bIPC9Qwg1M1h5pUTBkA0iTwkOml0.webp', 3),
+(4, 'NTS Korean Fried Chicken', '6 pieces Korean Fried Chicken and 3 servings of Chapchae in one box.', NULL, 'https://bonchon.com.ph/storage/menu/AaHq4eMfEgNiSPrltNbyUBwpcxmWgrlSL9Dfnl4m.webp', 1),
+(4, 'NTS Bonless Chikin', 'Large Bonless Chikin complemented by 3 servings of Chapchae.', 649.00, 'https://bonchon.com.ph/storage/menu/Qkhxn8KnBhAV5ovkV50RlZDhVySIZzcLOX0WO0Zz.webp', 2),
+(4, 'NTS Bonless Chikin & Rosébokki', 'Rosébokki paired with a generous serving of Bonless Chicken in your favorite glaze.', 1149.00, 'https://bonchon.com.ph/storage/menu/z9dV5W53AT07bIPC9Qwg1M1h5pUTBkA0iTwkOml0.webp', 3),
 (5, '2-pc Korean Fried Chicken', 'Two pieces of Bonchon Korean Fried Chicken with rice. Also available with a drink.', NULL, 'https://bonchon.com.ph/storage/menu/SIVvmNnKdOCuqD7F49sxcTlB3k1cwhYpuwlDaH82.png', 1),
 (5, '1-pc Korean Fried Chicken', 'A 1-pc Bonchon Korean Fried Chicken with rice, a budget-friendly meal.', NULL, 'https://bonchon.com.ph/storage/menu/ZnlSLSPZTsNS2Snp5X3jUIglGBMaAmeEylaKNQ70.png', 2),
 (5, '3-pc Bonless Chikin', 'A rice meal with 3 pieces of Bonless Chikin, glazed to your preference.', NULL, 'https://bonchon.com.ph/storage/menu/0FJzr8t6nm94ddzxUIl9MQghDKt19AoOat9yrnKs.png', 3),
@@ -146,6 +149,50 @@ INSERT INTO `menu_items` (`category_id`, `name`, `description`, `price`, `image_
 (21, '1L Signature Iced Tea', 'Bonchon iced tea. Available in 1L, Regular, and Large cups.', 146.00, 'https://bonchon.com.ph/storage/menu/ZFMt4XcXzZQblERwUFIACOSxQrLKvTi1aadrcsiF.webp', 1),
 (21, 'Pineapple Juice', 'A sweet, tropical pineapple juice drink. Available in Regular and Large.', 93.00, 'https://bonchon.com.ph/storage/menu/kEeRCKrpqmMMQIxtGIjP0QglCfPtw63zqqJmHL0i.webp', 2),
 (21, 'Soda', 'A classic fizzy drink available in a variety of flavors. Also available in Regular and Large.', 72.00, 'https://bonchon.com.ph/storage/menu/aOvZomiF7jegPwvcuYPu74SkYxPMrTc6V5TtLjda.webp', 3);
+
+-- Published online prices for products that match the delivery catalog.
+UPDATE `menu_items`
+SET `price` = CASE
+  WHEN `category_id` = 3 AND `name` = 'Fish N'' Chix Good for 3' THEN 702.00
+  WHEN `category_id` = 4 AND `name` = 'NTS Korean Fried Chicken' THEN 1043.00
+  WHEN `category_id` = 5 AND `name` = '2-pc Korean Fried Chicken' THEN 256.00
+  WHEN `category_id` = 5 AND `name` = '1-pc Korean Fried Chicken' THEN 157.00
+  WHEN `category_id` = 5 AND `name` = '3-pc Bonless Chikin' THEN 261.00
+  WHEN `category_id` = 5 AND `name` = 'Chicken Poppers' THEN 145.00
+  WHEN `category_id` = 6 AND `name` = 'Sizzling Beef Stew' THEN 323.00
+  WHEN `category_id` = 6 AND `name` = 'Beef Bulgogi' THEN 291.00
+  WHEN `category_id` = 8 AND `name` = 'Ultimate Sizzling Bibimbowl - Beef' THEN 281.00
+  WHEN `category_id` = 8 AND `name` = 'Bap Bowl' THEN 198.00
+  WHEN `category_id` = 8 AND `name` = 'Ultimate Sizzling Bibimbowl - Chicken' THEN 281.00
+  WHEN `category_id` = 9 AND `name` = 'Chikin Chops Sandwich' THEN 235.00
+  WHEN `category_id` = 9 AND `name` = 'Snackwich' THEN 104.00
+  WHEN `category_id` = 10 AND `name` = 'Rosébokki' THEN 178.00
+  WHEN `category_id` = 10 AND `name` = 'Cheesybokki' THEN 178.00
+  WHEN `category_id` = 10 AND `name` = 'Chapchae' THEN 178.00
+  WHEN `category_id` = 10 AND `name` = 'Bulgogi Noodle Soup' THEN 89.00
+  WHEN `category_id` = 12 AND `name` IN ('BYN Fried Tteokbokki', 'Snow Cheese Fried Tteokbokki', 'Honey Fried Tteokbokki') THEN 51.00
+  WHEN `category_id` = 13 AND `name` = 'Snow Cheese Cheeseballs' THEN 125.00
+  WHEN `category_id` = 15 AND `name` = 'White Rice' THEN 42.00
+  WHEN `category_id` = 16 AND `name` = '4-pcs Mandu' THEN 104.00
+  WHEN `category_id` = 16 AND `name` = 'Fresh Kimchi' THEN 51.00
+  WHEN `category_id` = 18 AND `name` IN ('Chocolate Brownie', 'Strawberry Oreo') THEN 145.00
+  WHEN `category_id` = 20 AND `name` IN ('Classic Caramel', 'Chocolate') THEN 126.00
+  WHEN `category_id` = 20 AND `name` = 'Koko Latte' THEN 146.00
+  ELSE `price`
+END
+WHERE (`category_id` = 3 AND `name` = 'Fish N'' Chix Good for 3')
+  OR (`category_id` = 4 AND `name` = 'NTS Korean Fried Chicken')
+   OR (`category_id` = 5 AND `name` IN ('2-pc Korean Fried Chicken', '1-pc Korean Fried Chicken', '3-pc Bonless Chikin', 'Chicken Poppers'))
+   OR (`category_id` = 6 AND `name` IN ('Sizzling Beef Stew', 'Beef Bulgogi'))
+   OR (`category_id` = 8 AND `name` IN ('Ultimate Sizzling Bibimbowl - Beef', 'Bap Bowl', 'Ultimate Sizzling Bibimbowl - Chicken'))
+   OR (`category_id` = 9 AND `name` IN ('Chikin Chops Sandwich', 'Snackwich'))
+   OR (`category_id` = 10 AND `name` IN ('Rosébokki', 'Cheesybokki', 'Chapchae', 'Bulgogi Noodle Soup'))
+   OR (`category_id` = 12 AND `name` IN ('BYN Fried Tteokbokki', 'Snow Cheese Fried Tteokbokki', 'Honey Fried Tteokbokki'))
+   OR (`category_id` = 13 AND `name` = 'Snow Cheese Cheeseballs')
+   OR (`category_id` = 15 AND `name` = 'White Rice')
+   OR (`category_id` = 16 AND `name` IN ('4-pcs Mandu', 'Fresh Kimchi'))
+   OR (`category_id` = 18 AND `name` IN ('Chocolate Brownie', 'Strawberry Oreo'))
+   OR (`category_id` = 20 AND `name` IN ('Classic Caramel', 'Chocolate', 'Koko Latte'));
 
 -- --------------------------------------------------------
 
@@ -235,6 +282,66 @@ ALTER TABLE `user_info`
 --
 ALTER TABLE `user_credentials`
   ADD CONSTRAINT `user_credentials_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user_info` (`user_id`);
+
+--
+-- Table structure for table `customer_orders`
+--
+
+CREATE TABLE `customer_orders` (
+  `order_id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_number` varchar(24) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `fulfillment` enum('delivery','pickup') NOT NULL,
+  `customer_name` varchar(120) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `delivery_address` varchar(500) DEFAULT NULL,
+  `delivery_instructions` varchar(500) DEFAULT NULL,
+  `pickup_location` varchar(255) DEFAULT NULL,
+  `scheduled_for` datetime DEFAULT NULL,
+  `payment_method` enum('cash','gcash','maya','card_pickup') NOT NULL,
+  `subtotal` decimal(10,2) NOT NULL,
+  `delivery_fee` decimal(8,2) DEFAULT NULL,
+  `total` decimal(10,2) DEFAULT NULL,
+  `status` varchar(32) NOT NULL DEFAULT 'pending',
+  `payment_status` varchar(32) NOT NULL DEFAULT 'awaiting',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`order_id`),
+  UNIQUE KEY `order_number` (`order_number`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `customer_orders_user_fk` FOREIGN KEY (`user_id`) REFERENCES `user_info` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `customer_order_items`
+--
+
+CREATE TABLE `customer_order_items` (
+  `order_item_id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_id` int(11) NOT NULL,
+  `item_id` int(11) DEFAULT NULL,
+  `item_name` varchar(160) NOT NULL,
+  `unit_price` decimal(8,2) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `options_json` text DEFAULT NULL,
+  `line_total` decimal(10,2) NOT NULL,
+  PRIMARY KEY (`order_item_id`),
+  KEY `order_id` (`order_id`),
+  KEY `item_id` (`item_id`),
+  CONSTRAINT `customer_order_items_order_fk` FOREIGN KEY (`order_id`) REFERENCES `customer_orders` (`order_id`) ON DELETE CASCADE,
+  CONSTRAINT `customer_order_items_item_fk` FOREIGN KEY (`item_id`) REFERENCES `menu_items` (`item_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `login_attempts`
+--
+
+CREATE TABLE `login_attempts` (
+  `email_addr` varchar(255) NOT NULL,
+  `attempt_count` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `locked_until` datetime DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`email_addr`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

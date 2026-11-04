@@ -89,9 +89,9 @@ require 'includes/header.php';
 
         <?php form_field('home_addr', 'Home address', 'text', $old['home_addr'], $errors['home_addr'] ?? null, 'required maxlength="255" autocomplete="street-address"'); ?>
 
-        <div class="row">
-          <div class="col-md-6"><?php form_field('email_addr', 'Email address', 'email', $old['email_addr'], $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?></div>
-          <div class="col-md-6"><?php form_field('mobileno', 'Mobile number', 'tel', $old['mobileno'], $errors['mobileno'] ?? null, 'required maxlength="13" placeholder="09XXXXXXXXX" pattern="(09\d{9}|\+639\d{9})" title="09XXXXXXXXX or +639XXXXXXXXX" autocomplete="tel"'); ?></div>
+        <div class="row register-contact-row">
+          <div class="col-md-6"><?php form_field('email_addr', 'Email address', 'email', $old['email_addr'], $errors['email_addr'] ?? null, 'required maxlength="255" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="email"'); ?></div>
+          <div class="col-md-6"><?php form_field('mobileno', 'Mobile number', 'tel', $old['mobileno'], $errors['mobileno'] ?? null, 'required maxlength="13" inputmode="tel" placeholder="09XXXXXXXXX" pattern="(09\d{9}|\+639\d{9})" title="09XXXXXXXXX or +639XXXXXXXXX" autocomplete="tel"'); ?></div>
         </div>
 
         <div class="row">

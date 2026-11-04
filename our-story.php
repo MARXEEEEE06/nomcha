@@ -18,7 +18,7 @@ include 'includes/header.php';
 	</section>
 
 	<section class="story-cover" aria-label="Welcome to Nomcha">
-		<img src="assets/welcome-hero.png" alt="Welcome to Nomcha, with a crispy golden chicken drumstick" fetchpriority="high">
+		<img src="assets/welcome-hero-removebg-preview.png" alt="Welcome to Nomcha, with a crispy golden chicken drumstick" fetchpriority="high">
 	</section>
 
 	<section class="story-intro py-5">
@@ -52,13 +52,13 @@ include 'includes/header.php';
 
 	<section class="story-belief py-5 py-lg-6">
 		<div class="container py-lg-4">
-			<div class="row align-items-start g-4 g-lg-5">
-				<div class="col-lg-5">
+			<div class="row g-4">
+				<div class="col-12">
 					<p class="story-eyebrow">At the heart of it all</p>
 					<h2 class="story-section-title">Our belief</h2>
 					<p class="story-belief-lead">We believe that food brings people together.</p>
 				</div>
-				<div class="col-lg-7">
+				<div class="col-12">
 					<ul class="story-beliefs list-unstyled mb-0">
 						<li>We believe that every customer deserves quality and satisfaction.</li>
 						<li>We believe that every meal can create meaningful memories.</li>
@@ -81,7 +81,7 @@ include 'includes/header.php';
 					<a class="btn btn-order px-4 py-2" href="menu.php">Explore our menu <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i></a>
 				</div>
 				<div class="col-lg-6 order-lg-1">
-					<img class="story-experience-image" src=".\assets\nomcha-photo.png" alt="A shared meal made for good moments" loading="lazy">
+					<img class="story-experience-image" src="assets/nomcha-photo.png" alt="Friends sharing a Nomcha meal" loading="lazy">
 				</div>
 			</div>
 		</div>

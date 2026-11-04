@@ -25,7 +25,7 @@ try {
       <p class="lead mb-4">Double-fried to perfection and glazed with our signature sauces.</p>
       <div class="d-flex flex-wrap gap-2">
         <a href="menu.php" class="btn btn-login btn-lg">View Menu</a>
-        <a href="#" class="btn btn-order btn-lg">Order Now</a>
+        <a href="order.php" class="btn btn-order btn-lg">Order Now</a>
       </div>
     </div>
   </div>

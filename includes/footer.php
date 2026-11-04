@@ -17,7 +17,7 @@
             <li><a href="#">Franchise</a></li>
           </ul>
           <ul class="list-unstyled col-4 mb-0">
-            <li class="mb-3"><a href="#">Order Now</a></li>
+            <li class="mb-3"><a href="order.php">Order Now</a></li>
             <li class="mb-3"><a href="our-story.php">Our Story</a></li>
             <li><a href="#">Promos</a></li>
           </ul>

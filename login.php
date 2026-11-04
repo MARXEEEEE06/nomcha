@@ -4,6 +4,7 @@ require 'includes/db.php';
 
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
 
+$redirectTo = ($_POST['redirect'] ?? $_GET['redirect'] ?? '') === 'order.php' ? 'order.php' : 'index.php';
 $errors  = [];
 $email   = '';
 $password = '';
@@ -17,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_check($_POST['csrf'] ?? null)) {
         $errors['form'] = 'Session expired. Please try again.';
     } else {
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
+        if (!valid_login_email($email) || strlen($email) > 255) {
             $errors['email_addr'] = 'Enter a valid email address.';
         }
         if ($password === '') {
@@ -26,25 +27,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$errors) {
             try {
-                $stmt = $pdo->prepare(
-                    'SELECT c.user_id, c.password, i.first_name
-                     FROM user_credentials c
-                     JOIN user_info i ON i.user_id = c.user_id
-                     WHERE c.email_addr = ? LIMIT 1'
-                );
-                $stmt->execute([$email]);
-                $row  = $stmt->fetch();
-                $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
+                if (login_is_locked($pdo, $email)) {
+                    $errors['form'] = 'Too many login attempts, please try again later.';
+                } else {
+                    $stmt = $pdo->prepare(
+                        'SELECT c.user_id, c.password, i.first_name
+                         FROM user_credentials c
+                         JOIN user_info i ON i.user_id = c.user_id
+                         WHERE c.email_addr = ? LIMIT 1'
+                    );
+                    $stmt->execute([$email]);
+                    $row  = $stmt->fetch();
+                    $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
 
-                if ($row && password_verify($password, $hash)) {
-                    session_regenerate_id(true);
-                    unset($_SESSION['csrf']);
-                    $_SESSION['user_id']    = (int)$row['user_id'];
-                    $_SESSION['first_name'] = $row['first_name'];
-                    header('Location: index.php');
-                    exit;
+                    if ($row && password_verify($password, $hash)) {
+                        clear_login_failures($pdo, $email);
+                        session_regenerate_id(true);
+                        unset($_SESSION['csrf']);
+                        $_SESSION['user_id']    = (int)$row['user_id'];
+                        $_SESSION['first_name'] = $row['first_name'];
+                        header('Location: ' . $redirectTo);
+                        exit;
+                    }
+
+                    $locked = record_login_failure($pdo, $email);
+                    $errors['form'] = $locked
+                        ? 'Too many login attempts, please try again later.'
+                        : 'Invalid email or password.';
                 }
-                $errors['form'] = 'Invalid email or password.';
             } catch (PDOException $ex) {
                 $errors['form'] = 'Login failed. Please try again.';
             }
@@ -72,8 +82,9 @@ require 'includes/header.php';
 
       <form method="post" action="login.php">
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+        <input type="hidden" name="redirect" value="<?= e($redirectTo) ?>">
 
-        <?php form_field('email_addr', 'Email address', 'email', $email, $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?>
+        <?php form_field('email_addr', 'Email address', 'text', $email, $errors['email_addr'] ?? null, 'required maxlength="255" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username"'); ?>
         <?php password_field('password', 'Password', $password, $errors['password'] ?? null, 'required maxlength="72" autocomplete="current-password"'); ?>
 
         <div class="text-end mb-3"><a href="forgot-password.php" class="auth-link small">Forgot password?</a></div>

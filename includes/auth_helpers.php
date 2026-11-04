@@ -4,6 +4,8 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 const NAME_RE   = '/^[\p{L}][\p{L} .\'-]{0,99}$/u';
 const MOBILE_RE = '/^(09\d{9}|\+639\d{9})$/';
 const PASS_RE   = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/';
+const LOGIN_MAX_ATTEMPTS = 6;
+const LOGIN_LOCK_MINUTES = 5;
 
 function e(?string $s): string {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -20,6 +22,55 @@ function csrf_check($t): bool {
 
 function normalize_mobile(string $m): string {
     return str_starts_with($m, '+63') ? '0' . substr($m, 3) : $m;
+}
+
+function valid_login_email(string $email): bool {
+    return $email === 'admin@admin' || (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+function login_is_locked(PDO $pdo, string $email): bool {
+    $stmt = $pdo->prepare('SELECT locked_until IS NOT NULL AND locked_until > NOW() FROM login_attempts WHERE email_addr = ?');
+    $stmt->execute([$email]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function record_login_failure(PDO $pdo, string $email): bool {
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT IGNORE INTO login_attempts (email_addr, attempt_count) VALUES (?, 0)')->execute([$email]);
+        $stmt = $pdo->prepare(
+            'SELECT attempt_count, locked_until, locked_until IS NOT NULL AND locked_until > NOW() AS is_locked
+             FROM login_attempts WHERE email_addr = ? FOR UPDATE'
+        );
+        $stmt->execute([$email]);
+        $attempt = $stmt->fetch();
+
+        if (!$attempt) {
+            throw new RuntimeException('Login attempt row could not be locked.');
+        }
+        if ((bool)$attempt['is_locked']) {
+            $pdo->commit();
+            return true;
+        }
+
+        $count = $attempt['locked_until'] !== null ? 1 : (int)$attempt['attempt_count'] + 1;
+        $locked = $count >= LOGIN_MAX_ATTEMPTS;
+        $update = $pdo->prepare(
+            'UPDATE login_attempts
+               SET attempt_count = ?, locked_until = CASE WHEN ? = 1 THEN DATE_ADD(NOW(), INTERVAL ' . LOGIN_LOCK_MINUTES . ' MINUTE) ELSE NULL END
+             WHERE email_addr = ?'
+        );
+        $update->execute([$count, $locked ? 1 : 0, $email]);
+        $pdo->commit();
+        return $locked;
+    } catch (Throwable $ex) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $ex;
+    }
+}
+
+function clear_login_failures(PDO $pdo, string $email): void {
+    $pdo->prepare('DELETE FROM login_attempts WHERE email_addr = ?')->execute([$email]);
 }
 
 function validate_registration(array $d, string $password, string $confirm): array {
