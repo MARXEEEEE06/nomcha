@@ -81,7 +81,7 @@ include 'includes/header.php';
 					<a class="btn btn-order px-4 py-2" href="menu.php">Explore our menu <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i></a>
 				</div>
 				<div class="col-lg-6 order-lg-1">
-					<img class="story-experience-image" src="https://www.bonchon.com.ph/storage/cms_images/89D0aEzLrjrMFUjRZ9lh79Qu7CLZz9eEjxlOa7mh.webp" alt="A shared meal made for good moments" loading="lazy">
+					<img class="story-experience-image" src=".\assets\nomcha-photo.png" alt="A shared meal made for good moments" loading="lazy">
 				</div>
 			</div>
 		</div>
