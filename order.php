@@ -3,7 +3,14 @@ require 'includes/auth_helpers.php';
 require 'includes/db.php';
 
 if (empty($_SESSION['user_id'])) {
-	header('Location: login.php?redirect=order.php');
+	$loginRedirect = 'order.php';
+	if (($_GET['fulfillment'] ?? '') === 'pickup') {
+		$pickupLocation = trim((string)($_GET['pickup_location'] ?? ''));
+		if (mb_strlen($pickupLocation) <= 255 && $pickupLocation !== '') {
+			$loginRedirect .= '?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
+		}
+	}
+	header('Location: login.php?redirect=' . rawurlencode($loginRedirect));
 	exit;
 }
 
@@ -21,6 +28,11 @@ $form = [
 		'scheduled_for' => '',
 		'payment_method' => 'cash',
 ];
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['fulfillment'] ?? '') === 'pickup') {
+		$form['fulfillment'] = 'pickup';
+		$pickupLocation = trim((string)($_GET['pickup_location'] ?? ''));
+		if (mb_strlen($pickupLocation) <= 255) $form['pickup_location'] = $pickupLocation;
+}
 $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
 
@@ -116,6 +128,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						$options = [];
 						$addOnTotal = 0.0;
 						$submittedOptions = is_array($entry['options'] ?? null) ? $entry['options'] : [];
+						$specialRequestValue = $submittedOptions['specialRequest'] ?? '';
+						if (!is_string($specialRequestValue) || mb_strlen($specialRequestValue) > 500) {
+							$errors[] = 'Special requests must be 500 characters or fewer.';
+							break;
+						}
+						$specialRequest = trim($specialRequestValue);
 						$fanverseMatch = preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch);
 						if ($fanverseMatch) {
 							$portionCount = (int)$bundleMatch[1];
@@ -150,7 +168,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								$sideCount += $count;
 							}
 							$drink = $submittedOptions['drink'] ?? '';
-							$specialRequest = trim((string)($submittedOptions['specialRequest'] ?? ''));
 							if ($flavorCount < 1 || $flavorCount > $portionCount) {
 								$errors[] = 'Select at least one chicken flavor and no more than ' . $portionCount . ' pieces.';
 							}
@@ -159,9 +176,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 							}
 							if ($drink !== 'Regular Pepsi (' . $portionCount . 'pcs)') {
 								$errors[] = 'Choose the included Pepsi for your Fanverse Meal.';
-							}
-							if (mb_strlen($specialRequest) > 500) {
-								$errors[] = 'Special requests must be 500 characters or fewer.';
 							}
 							if ($errors) break;
 							$options = [
@@ -179,6 +193,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 										break;
 								}
 								$options['glaze'] = $glaze;
+								if ($specialRequest !== '') $options['specialRequest'] = $specialRequest;
+						} elseif ($specialRequest !== '') {
+								$options['specialRequest'] = $specialRequest;
 						}
 
 							$unitPrice = (float)$item['price'] + $addOnTotal;
@@ -428,9 +445,9 @@ require 'includes/header.php';
 	<?php elseif ($dbError): ?>
 		<div class="container py-4"><div class="alert alert-warning mb-0"><?= e($dbError) ?></div></div>
 	<?php else: ?>
-		<div class="container py-4 py-lg-5">
+		<div class="container-fluid order-layout-container py-4 py-lg-5">
 			<div class="row g-4 g-xl-5 align-items-start">
-				<aside class="col-lg-3 order-categories-col">
+				<aside class="col-lg-2 order-categories-col">
 					<nav class="order-categories" aria-label="Menu categories">
 						<h2 class="h5 mb-3">Browse menu</h2>
 						<label class="visually-hidden" for="order-search">Search menu</label>
@@ -440,16 +457,32 @@ require 'includes/header.php';
 						</div>
 						<div class="order-category-links">
 							<?php foreach ($categories as $category): ?>
-								<a href="#order-category-<?= (int)$category['category_id'] ?>"><?= e($category['name']) ?></a>
-								<?php foreach ($category['children'] as $child): ?>
-									<a class="order-category-child" href="#order-category-<?= (int)$child['category_id'] ?>"><?= e($child['name']) ?></a>
-								<?php endforeach; ?>
+								<?php if ($category['children']): ?>
+									<div class="order-category-group">
+										<div class="order-category-heading">
+											<a href="#order-category-<?= (int)$category['category_id'] ?>"><?= e($category['name']) ?></a>
+											<button class="btn btn-sm menu-toggle order-category-toggle" type="button"
+												data-bs-toggle="collapse" data-bs-target="#order-subcategories-<?= (int)$category['category_id'] ?>"
+												aria-expanded="true" aria-controls="order-subcategories-<?= (int)$category['category_id'] ?>"
+												aria-label="Toggle <?= e($category['name']) ?> subcategories">
+												<i class="bi bi-chevron-up" aria-hidden="true"></i>
+											</button>
+										</div>
+										<div class="collapse show order-category-sub-links" id="order-subcategories-<?= (int)$category['category_id'] ?>">
+											<?php foreach ($category['children'] as $child): ?>
+												<a class="order-category-child" href="#order-category-<?= (int)$child['category_id'] ?>"><?= e($child['name']) ?></a>
+											<?php endforeach; ?>
+										</div>
+									</div>
+								<?php else: ?>
+									<a href="#order-category-<?= (int)$category['category_id'] ?>"><?= e($category['name']) ?></a>
+								<?php endif; ?>
 							<?php endforeach; ?>
 						</div>
 					</nav>
 				</aside>
 
-				<section class="col-lg-6 order-catalog" aria-label="Menu items">
+				<section class="col-lg-8 order-catalog" aria-label="Menu items">
 					<?php foreach ($categories as $category): ?>
 						<?php $rootItems = array_values(array_filter($itemsByCategory[$category['category_id']] ?? [], static fn(array $item): bool => $item['price'] !== null && (float)$item['price'] > 0)); ?>
 						<section class="order-menu-section" id="order-category-<?= (int)$category['category_id'] ?>">
@@ -521,7 +554,7 @@ require 'includes/header.php';
 					<p id="order-no-results" class="alert alert-light d-none">No menu items match your search.</p>
 				</section>
 
-				<aside class="col-lg-3" id="checkout-panel">
+				<aside class="col-lg-2" id="checkout-panel">
 					<form id="checkout-form" class="order-checkout" method="post" action="order.php" novalidate>
 						<input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
 						<input type="hidden" name="cart_json" id="cart-json" value="[]">

@@ -119,21 +119,21 @@
     document.getElementById('schedule-day-label').textContent = dateForDisplay.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
     const options = document.getElementById('schedule-time-options');
     const currentScheduled = document.getElementById('scheduled-for').value;
-    const selectedTime = currentScheduled.startsWith(today) ? currentScheduled.slice(11, 16) : '';
+    const requestedTime = currentScheduled.startsWith(today) ? currentScheduled.slice(11, 16) : '';
+    const selectedTime = requestedTime > currentTime ? requestedTime : '';
     const rows = [{ value: 'asap', label: `${document.getElementById('fulfillment').value === 'delivery' ? 'Delivery' : 'Pickup'} ASAP`, icon: 'bi-lightning-charge-fill' }];
 
     for (let minutes = 9 * 60 + 30; minutes <= 23 * 60; minutes += 30) {
       const start = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-      if (start <= currentTime) continue;
       const endMinutes = minutes + 30;
       const end = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`;
-      rows.push({ value: start, label: `${formatClockTime(start)} - ${formatClockTime(end)}` });
+      rows.push({ value: start, label: `${formatClockTime(start)} - ${formatClockTime(end)}`, unavailable: start <= currentTime });
     }
 
     options.innerHTML = rows.map((row, index) => {
       const checked = row.value === 'asap' ? !selectedTime : row.value === selectedTime;
-      return `<label class="order-schedule-option${checked ? ' selected' : ''}">
-        <input type="radio" name="schedule-choice" value="${row.value}" data-time-value="${row.value === 'asap' ? '' : row.value}" ${checked ? 'checked' : ''}>
+      return `<label class="order-schedule-option${checked ? ' selected' : ''}${row.unavailable ? ' disabled' : ''}">
+        <input type="radio" name="schedule-choice" value="${row.value}" data-time-value="${row.value === 'asap' ? '' : row.value}" ${checked ? 'checked' : ''} ${row.unavailable ? 'disabled' : ''}>
         <span>${row.icon ? `<i class="bi ${row.icon}" aria-hidden="true"></i>` : ''}${row.label}</span>
         <i class="bi bi-check-circle-fill order-schedule-check" aria-hidden="true"></i>
       </label>`;
@@ -222,7 +222,7 @@
     const validation = document.getElementById('item-options-error');
     validation.textContent = '';
     const specialRequest = document.querySelector('.order-special-request');
-    specialRequest.hidden = !item.fanverse;
+    specialRequest.hidden = false;
 
     if (item.fanverse) {
       const addCountGroup = (key, label, subtitle, choices, required) => {
@@ -254,20 +254,25 @@
       fields.append(drinkGroup);
     } else {
       item.options.forEach(group => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'mb-3';
-        const label = document.createElement('label');
+        const wrapper = document.createElement('section');
+        wrapper.className = 'order-option-group';
+        const heading = document.createElement('div');
+        heading.className = 'order-option-group-heading';
+        const headingCopy = document.createElement('div');
+        const title = document.createElement('h3');
+        const subtitle = document.createElement('p');
         const select = document.createElement('select');
         const id = `option-${group.key}`;
-        label.className = 'form-label';
-        label.htmlFor = id;
-        label.textContent = group.label;
+        title.textContent = group.label;
+        subtitle.textContent = group.required ? 'Select one option' : 'Optional';
+        headingCopy.append(title, subtitle);
+        heading.append(headingCopy);
         select.className = 'form-select';
         select.name = group.key;
         select.id = id;
         select.required = Boolean(group.required);
         select.innerHTML = '<option value="">Choose one</option>' + group.choices.map(choice => `<option value="${escapeHtml(choice)}">${escapeHtml(choice)}</option>`).join('');
-        wrapper.append(label, select);
+        wrapper.append(heading, select);
         fields.append(wrapper);
       });
     }
@@ -315,8 +320,7 @@
     if (addButton) {
       const item = menuItems.get(addButton.dataset.addItem);
       if (!item || item.priceCents === null) return;
-      if (item.fanverse || item.options.length) openOptions(item);
-      else addItem(item, 1, {});
+      openOptions(item);
       return;
     }
 
@@ -356,6 +360,8 @@
       for (const group of selectedItem.options) {
         options[group.key] = document.getElementById(`option-${group.key}`).value;
       }
+      const specialRequest = document.getElementById('option-special-request').value.trim();
+      if (specialRequest) options.specialRequest = specialRequest;
     }
     const quantity = Math.min(99, Math.max(1, Number(document.getElementById('option-quantity').value) || 1));
     addItem(selectedItem, quantity, options);

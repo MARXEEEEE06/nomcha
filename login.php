@@ -4,7 +4,20 @@ require 'includes/db.php';
 
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
 
-$redirectTo = ($_POST['redirect'] ?? $_GET['redirect'] ?? '') === 'order.php' ? 'order.php' : 'index.php';
+$redirectCandidate = (string)($_POST['redirect'] ?? $_GET['redirect'] ?? '');
+$redirectTo = $redirectCandidate === 'order.php' ? 'order.php' : 'index.php';
+if ($redirectTo === 'index.php') {
+    $redirectPath = parse_url($redirectCandidate, PHP_URL_PATH);
+    $redirectQuery = [];
+    parse_str((string)parse_url($redirectCandidate, PHP_URL_QUERY), $redirectQuery);
+    $pickupLocation = trim((string)($redirectQuery['pickup_location'] ?? ''));
+    if ($redirectPath === 'order.php'
+        && ($redirectQuery['fulfillment'] ?? '') === 'pickup'
+        && $pickupLocation !== ''
+        && mb_strlen($pickupLocation) <= 255) {
+        $redirectTo = 'order.php?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
+    }
+}
 $errors  = [];
 $email   = '';
 $password = '';

@@ -21,6 +21,7 @@ function navActive(string $file, string $current): string {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>" rel="stylesheet">
+  <?= $pageStyles ?? '' ?>
 </head>
 <body>
 
@@ -35,7 +36,7 @@ function navActive(string $file, string $current): string {
         <ul class="navbar-nav me-auto mb-2 mb-xl-0">
             <li class="nav-item"><a class="nav-link<?= navActive('menu.php', $current) ?>" href="menu.php">Menu</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('our-story.php', $current) ?>" href="our-story.php">Our Story</a></li>
-            <li class="nav-item"><a class="nav-link" href="#">Branches</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('branches.php', $current) ?>" href="branches.php">Branches</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Promos</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Franchise</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Careers</a></li>

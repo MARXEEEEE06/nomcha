@@ -63,7 +63,8 @@ INSERT INTO `menu_categories` (`category_id`, `parent_id`, `name`, `description`
 (18, 17, 'Bingsu', NULL, 1),
 (19, NULL, 'Beverages', NULL, 11),
 (20, 19, 'Cafe Koreano', NULL, 1),
-(21, 19, 'Refreshing Drinks', NULL, 2);
+(21, 19, 'Refreshing Drinks', NULL, 2),
+(22, NULL, 'BBQ Sizzlers', 'Korean-style BBQ dishes served with rice.', 12);
 
 -- --------------------------------------------------------
 
@@ -148,7 +149,10 @@ INSERT INTO `menu_items` (`category_id`, `name`, `description`, `price`, `image_
 (20, 'Koko Latte', 'A creamy snow ice coffee drink made with coconut milk, condensed milk, and coffee jelly.', NULL, 'https://bonchon.com.ph/storage/menu/6vTHry6FOfa00GGF9OsNf1oEX4Rvz6qUpjo3sg3c.webp', 4),
 (21, '1L Signature Iced Tea', 'Bonchon iced tea. Available in 1L, Regular, and Large cups.', 146.00, 'https://bonchon.com.ph/storage/menu/ZFMt4XcXzZQblERwUFIACOSxQrLKvTi1aadrcsiF.webp', 1),
 (21, 'Pineapple Juice', 'A sweet, tropical pineapple juice drink. Available in Regular and Large.', 93.00, 'https://bonchon.com.ph/storage/menu/kEeRCKrpqmMMQIxtGIjP0QglCfPtw63zqqJmHL0i.webp', 2),
-(21, 'Soda', 'A classic fizzy drink available in a variety of flavors. Also available in Regular and Large.', 72.00, 'https://bonchon.com.ph/storage/menu/aOvZomiF7jegPwvcuYPu74SkYxPMrTc6V5TtLjda.webp', 3);
+(21, 'Soda', 'A classic fizzy drink available in a variety of flavors. Also available in Regular and Large.', 72.00, 'https://bonchon.com.ph/storage/menu/aOvZomiF7jegPwvcuYPu74SkYxPMrTc6V5TtLjda.webp', 3),
+(5, '6-pc Chikin Ala Carte', 'Six pieces of Korean fried chikin, served à la carte.', 235.00, 'https://images.tablevibestaticassets.co/8xotaifmlsk8jo5xh8ptf5x54qmj', 5),
+(22, 'Pork BBQ Meal', 'Thinly sliced pork belly marinated in soy sauce, Korean chili, and spices, served with rice.', 291.00, 'https://www.bonchon.com.ph/storage/cms_images/lj8oc25rqsJim7X4z8o1WH5ZEJpumFQTQ625BsRa.jpg', 1),
+(16, 'Pizza Sauce', 'A serving of pizza sauce.', 31.00, 'https://bonchon.com.ph/storage/menu/YoxdlxmGi1bbQCcFpC1t6aOmfmltDicS8Uuaan0u.png', 4);
 
 -- Published online prices for products that match the delivery catalog.
 UPDATE `menu_items`

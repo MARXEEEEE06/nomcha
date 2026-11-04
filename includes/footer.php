@@ -13,7 +13,7 @@
         <div class="row footer-links">
           <ul class="list-unstyled col-4 mb-0">
             <li class="mb-3"><a href="menu.php">Menu</a></li>
-            <li class="mb-3"><a href="#">Branches</a></li>
+            <li class="mb-3"><a href="branches.php">Branches</a></li>
             <li><a href="#">Franchise</a></li>
           </ul>
           <ul class="list-unstyled col-4 mb-0">
