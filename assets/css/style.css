@@ -1,12 +1,19 @@
 :root {
-  --nc-red: #8B3A32;
+  --nc-red: #AC1212;
+  --nc-orange: #eba80c;
+  --nc-tan: #DC901E;
+  --nc-cream: #EEE6DA;
+  --nc-ink: #180404;
+  
+  
+  /* --nc-red: #8B3A32;
   --nc-orange: #F77F00;
   --nc-tan: #bd7121;
   --nc-cream: #EEE6DA;
-  --nc-ink: #24221F;
+  --nc-ink: #24221F; */
 
   /* Hover Scale */
-  --nc-hover-scale: 1.05;
+  --nc-hover-scale: 1.10;
 
   /* Hover Transition */
   --nc-hover-transition: transform .2s ease-in-out;
@@ -15,7 +22,8 @@
   --nc-tan: #B99A7B;
   --nc-cream: #EEE6DA;
   --nc-ink: #24221F; */
-  /* 
+  
+  /*Palette 1 
   #D62828
 
   #F77F00
@@ -25,6 +33,19 @@
   #8C2F39
 
   #F8F1F1
+ */
+
+ /* Palette 2 
+  DC901E - Harvest Gold
+  
+  EEB42C - Xanthous
+  
+  AC1212 - Cornell Red
+  
+  4A0202 - Black Bean
+
+  180404 - Licorice
+
  */
 }
 

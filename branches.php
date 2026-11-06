@@ -32,7 +32,7 @@ require 'includes/header.php';
                 <select id="branch-city" class="form-select"><option value="">All cities</option></select>
             </div>
             <button type="button" id="branch-use-location" class="btn btn-order branch-location-button">
-                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>Use my location
+                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>Locate nearest branch
             </button>
         </div>
         <p id="branch-location-status" class="branch-location-status" role="status" aria-live="polite"></p>

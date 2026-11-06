@@ -16,7 +16,7 @@ function navActive(string $file, string $current): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($pageTitle) ?> | Nomcha</title>
-  <link rel="icon" type="image/png" sizes="256x256" href="assets/namcha_favicon-256.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="assets/namcha_favicon_256.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">

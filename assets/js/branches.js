@@ -9,6 +9,7 @@
   const locationButton = document.getElementById('branch-use-location');
   const locationStatus = document.getElementById('branch-location-status');
   const provinceNames = [...new Set(branches.map(branch => branch.province))].sort();
+  const RECOMMENDED_RANGE_KM = 10;
   let userLocation = null;
   let map = null;
   let markers = new Map();
@@ -59,8 +60,10 @@
         && (!citySelect.value || branch.city === citySelect.value);
     });
     if (!userLocation) return filtered;
-    return filtered.map(branch => ({ ...branch, distance: distanceKm(userLocation, branch) }))
+    const byDistance = filtered.map(branch => ({ ...branch, distance: distanceKm(userLocation, branch) }))
       .sort((a, b) => a.distance - b.distance);
+    const nearby = byDistance.filter(branch => branch.distance <= RECOMMENDED_RANGE_KM);
+    return nearby.length ? nearby : byDistance.slice(0, 1);
   };
 
   const renderResults = () => {
@@ -138,7 +141,10 @@
     locationStatus.textContent = 'Finding branches near you…';
     navigator.geolocation.getCurrentPosition(position => {
       userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-      locationStatus.textContent = 'Showing the nearest matching branches first.';
+      searchInput.value = '';
+      provinceSelect.value = '';
+      updateCityOptions();
+      locationStatus.textContent = `Showing branches within ${RECOMMENDED_RANGE_KM} km. If none are nearby, showing the closest branch.`;
       locationButton.disabled = false;
       if (map) {
         if (userMarker) userMarker.remove();
