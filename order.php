@@ -389,6 +389,7 @@ require 'includes/header.php';
 	</div>
 	<section class="order-heading-band">
 		<div class="container py-4 py-lg-5">
+			<img class="" src="https://www.bonchon.com.ph/storage/cms_images/lj8oc25rqsJim7X4z8o1WH5ZEJpumFQTQ625BsRa" alt="BBQ Sizzlers Meal" >
 			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
 				<div>
 					<p class="order-eyebrow mb-2">Nomcha, made to order</p>
