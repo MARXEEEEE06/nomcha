@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						$fanverseMatch = preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch);
 						if ($fanverseMatch) {
 							$portionCount = (int)$bundleMatch[1];
-							$allowedFlavors = ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Bonchon YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'];
+							$allowedFlavors = ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Nomcha YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'];
 							$allowedSides = [
 								'Fried Tteokbokki - BYN (8 sticks)',
 								'Fried Tteokbokki - Snowcheese (8 sticks)',
@@ -303,7 +303,7 @@ try {
 				if (preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch)) {
 					$fanverse = [
 						'portionCount' => (int)$bundleMatch[1],
-						'flavors' => ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Bonchon YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'],
+						'flavors' => ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Nomcha YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'],
 						'sides' => [
 							['name' => 'Fried Tteokbokki - BYN (8 sticks)', 'priceCents' => 26900],
 							['name' => 'Fried Tteokbokki - Snowcheese (8 sticks)', 'priceCents' => 26900],
@@ -447,7 +447,7 @@ require 'includes/header.php';
 	<?php else: ?>
 		<div class="container-fluid order-layout-container py-4 py-lg-5">
 			<div class="row g-4 g-xl-5 align-items-start">
-				<aside class="col-lg-2 order-categories-col">
+				<aside class="col-lg-3 order-categories-col">
 					<nav class="order-categories" aria-label="Menu categories">
 						<h2 class="h5 mb-3">Browse menu</h2>
 						<label class="visually-hidden" for="order-search">Search menu</label>
@@ -482,7 +482,7 @@ require 'includes/header.php';
 					</nav>
 				</aside>
 
-				<section class="col-lg-8 order-catalog" aria-label="Menu items">
+				<section class="col-lg-6 order-catalog" aria-label="Menu items">
 					<?php foreach ($categories as $category): ?>
 						<?php $rootItems = array_values(array_filter($itemsByCategory[$category['category_id']] ?? [], static fn(array $item): bool => $item['price'] !== null && (float)$item['price'] > 0)); ?>
 						<section class="order-menu-section" id="order-category-<?= (int)$category['category_id'] ?>">
@@ -554,7 +554,7 @@ require 'includes/header.php';
 					<p id="order-no-results" class="alert alert-light d-none">No menu items match your search.</p>
 				</section>
 
-				<aside class="col-lg-2" id="checkout-panel">
+				<aside class="col-lg-3" id="checkout-panel">
 					<form id="checkout-form" class="order-checkout" method="post" action="order.php" novalidate>
 						<input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
 						<input type="hidden" name="cart_json" id="cart-json" value="[]">

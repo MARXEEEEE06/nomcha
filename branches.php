@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'Bonchon Branches';
+$pageTitle = 'Nomcha Branches';
 $branches = json_decode(file_get_contents(__DIR__ . '/assets/branches-data.json'), true) ?: [];
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"><link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">';
 require 'includes/header.php';
@@ -8,8 +8,8 @@ require 'includes/header.php';
 <main class="branches-page">
     <section class="branches-hero">
         <div class="container py-5">
-            <p class="order-eyebrow mb-2">Find your nearest Bonchon</p>
-            <h1 class="mb-2">Bonchon Branches</h1>
+            <p class="order-eyebrow mb-2">Find your nearest Nomcha</p>
+            <h1 class="mb-2">Nomcha Branches</h1>
             <p class="mb-0">Find a nearby branch, check its hours, and plan your visit.</p>
         </div>
     </section>
