@@ -1,0 +1,5 @@
+temp/
+*.sql
+*.png~
+*.jpg~
+*.jpeg~

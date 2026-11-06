@@ -18,7 +18,12 @@ include 'includes/header.php';
 	</section>
 
 	<section class="story-cover" aria-label="Welcome to Nomcha">
-		<img src="assets/welcome-hero-removebg-preview.png" alt="Welcome to Nomcha, with a crispy golden chicken drumstick" fetchpriority="high">
+		<img src="assets/welcome-banner.png" alt="Welcome to Nomcha, with a crispy golden chicken drumstick" fetchpriority="high">
+		<img class="story-cover-chicken" src="assets/chicken.png" alt="" aria-hidden="true" fetchpriority="high">
+		<img class="story-cover-thunder story-cover-thunder-1" src="assets/thunder.png" alt="" aria-hidden="true">
+		<img class="story-cover-thunder story-cover-thunder-2" src="assets/thunder.png" alt="" aria-hidden="true">
+		<img class="story-cover-thunder story-cover-thunder-3" src="assets/thunder.png" alt="" aria-hidden="true">
+		<img class="story-cover-thunder story-cover-thunder-4" src="assets/thunder.png" alt="" aria-hidden="true">
 	</section>
 
 	<section class="story-intro py-5">
@@ -81,7 +86,10 @@ include 'includes/header.php';
 					<a class="btn btn-order px-4 py-2" href="menu.php">Explore our menu <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i></a>
 				</div>
 				<div class="col-lg-6 order-lg-1">
-					<img class="story-experience-image" src="assets/nomcha-photo.png" alt="Friends sharing a Nomcha meal" loading="lazy">
+					<div class="story-experience-visual">
+						<img class="story-experience-image" src="assets/nomcha-photo.png" alt="Friends sharing a Nomcha meal" loading="lazy">
+						<img class="story-experience-overlay" src="assets/story-experience.png" alt="" aria-hidden="true" loading="lazy">
+					</div>
 				</div>
 			</div>
 		</div>
