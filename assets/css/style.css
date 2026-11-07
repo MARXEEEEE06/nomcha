@@ -297,6 +297,8 @@ html { scroll-behavior: smooth; }
 .order-option-choice, .order-drink-choice { display: flex; justify-content: space-between; align-items: center; gap: .75rem; min-height: 50px; margin-top: .45rem; padding: .5rem .7rem; border: 1px solid rgba(74,52,40,.15); border-radius: .65rem; background: #fff; }
 .order-option-choice-name { display: grid; min-width: 0; color: #25211e; font-size: .8rem; font-weight: 600; }
 .order-option-choice-name small { color: #746b64; font-size: .7rem; font-weight: 400; }
+.order-option-radio-choice { cursor: pointer; }
+.order-option-radio-choice input { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; margin: 0; accent-color: var(--nc-orange); }
 .order-option-stepper { display: flex; align-items: center; gap: .6rem; }
 .order-option-stepper button, .order-option-quantity button { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 50%; background: rgba(192,28,37,.1); color: #c01c25; font-size: 1.15rem; font-weight: 600; }
 .order-option-stepper button:first-child { background: #f5f5f4; color: #736d68; }

@@ -3,3 +3,7 @@ temp/
 *.png~
 *.jpg~
 *.jpeg~
+/includes/local_config.php
+!/database/
+!/database/migrations/
+!/database/migrations/*.sql

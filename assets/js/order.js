@@ -31,6 +31,7 @@
               && Object.keys(entry.options.sides || {}).length > 0
               && Boolean(entry.options.drink);
           }
+          if (item.customOptions?.length) return item.customOptions.filter(group => group.required).every(group => Boolean((entry.options.choiceSelections || entry.options)[group.key]));
           return item.options.every(group => Boolean(entry.options[group.key]));
         });
     }
@@ -71,6 +72,12 @@
   );
 
   const optionAddOnCents = (item, options) => {
+    if (item?.customOptions?.length) return item.customOptions.reduce((total, group) => {
+      const selected = (options?.choiceSelections || options)?.[group.key];
+      if (group.multiple && selected && typeof selected === 'object') return total + Object.entries(selected).reduce((sum, [name, count]) => sum + (group.choices.find(choice => choice.name === name)?.priceCents || 0) * Number(count), 0);
+      const choice = group.choices.find(option => option.name === selected);
+      return total + (choice?.priceCents || 0);
+    }, 0);
     if (!item?.fanverse) return 0;
     return Object.entries(options?.sides || {}).reduce((total, [name, count]) => {
       const side = item.fanverse.sides.find(choice => choice.name === name);
@@ -84,7 +91,8 @@
     if (!selectedItem) return;
     const quantity = Math.min(99, Math.max(1, Number(document.getElementById('option-quantity').value) || 1));
     const sideCount = Object.values(optionGroupCounts('sides')).reduce((total, count) => total + count, 0);
-    const addOn = selectedItem.fanverse ? selectedItem.fanverse.sides[0].priceCents * sideCount : 0;
+    const customSelections = Object.fromEntries(selectedItem.customOptions?.map(group => [group.key, group.multiple ? optionGroupCounts(group.key) : document.querySelector(`input[name="option-${group.key}"]:checked`)?.value || '']) || []);
+    const addOn = selectedItem.fanverse ? selectedItem.fanverse.sides[0].priceCents * sideCount : optionAddOnCents(selectedItem, { choiceSelections: customSelections });
     document.getElementById('item-options-total').textContent = formatMoney((selectedItem.priceCents + addOn) * quantity);
   };
 
@@ -175,7 +183,7 @@
             entry.options.drink,
             entry.options.specialRequest,
           ].filter(Boolean).join(' · ')
-          : Object.values(entry.options).filter(Boolean).join(' · ');
+          : Object.entries(entry.options.choiceSelections || entry.options).filter(([key, value]) => key !== 'specialRequest' && value).map(([, value]) => typeof value === 'object' ? Object.entries(value).map(([name, count]) => `${count} × ${name}`).join(', ') : value).concat(entry.options.specialRequest || []).join(' · ');
         const lineTotal = optionUnitPrice(item, entry.options) * entry.quantity;
         return `<div class="order-cart-line">
           <div class="order-cart-line-main">
@@ -253,26 +261,24 @@
         <label class="order-drink-choice"><span>${escapeHtml(item.fanverse.drink)}</span><input type="radio" name="fanverse-drink" value="${escapeHtml(item.fanverse.drink)}" required></label>`;
       fields.append(drinkGroup);
     } else {
-      item.options.forEach(group => {
+      (item.customOptions || item.options).forEach(group => {
         const wrapper = document.createElement('section');
         wrapper.className = 'order-option-group';
-        const heading = document.createElement('div');
-        heading.className = 'order-option-group-heading';
-        const headingCopy = document.createElement('div');
-        const title = document.createElement('h3');
-        const subtitle = document.createElement('p');
-        const select = document.createElement('select');
-        const id = `option-${group.key}`;
-        title.textContent = group.label;
-        subtitle.textContent = group.required ? 'Select one option' : 'Optional';
-        headingCopy.append(title, subtitle);
-        heading.append(headingCopy);
-        select.className = 'form-select';
-        select.name = group.key;
-        select.id = id;
-        select.required = Boolean(group.required);
-        select.innerHTML = '<option value="">Choose one</option>' + group.choices.map(choice => `<option value="${escapeHtml(choice)}">${escapeHtml(choice)}</option>`).join('');
-        wrapper.append(heading, select);
+        const choices = group.choices.map(choice => typeof choice === 'string' ? { name: choice, priceCents: 0 } : choice);
+        if (group.multiple) {
+          const rows = choices.map(choice => `<div class="order-option-choice" data-option-group-choice="${group.key}" data-option-name="${escapeHtml(choice.name)}"><div class="order-option-choice-name">${escapeHtml(choice.name)}${choice.priceCents ? `<small>+${formatMoney(choice.priceCents)}</small>` : ''}</div><div class="order-option-stepper"><button type="button" data-option-step="down" data-option-group="${group.key}" aria-label="Remove ${escapeHtml(choice.name)}">−</button><span data-option-count aria-live="polite">0</span><button type="button" data-option-step="up" data-option-group="${group.key}" aria-label="Add ${escapeHtml(choice.name)}">+</button></div></div>`).join('');
+          wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>Select up to ${group.maxCount} options</p></div></div>${rows}`;
+          fields.append(wrapper);
+          return;
+        }
+        const rows = choices.map((choice, index) => {
+          const id = `option-${group.key}-${index}`;
+          return `<label class="order-option-choice order-option-radio-choice" for="${id}">
+            <span class="order-option-choice-name">${escapeHtml(choice.name)}${choice.priceCents ? `<small>+${formatMoney(choice.priceCents)}</small>` : ''}</span>
+            <input id="${id}" type="radio" name="option-${group.key}" value="${escapeHtml(choice.name)}" data-option-key="${escapeHtml(group.key)}" ${group.required && index === 0 ? 'required' : ''}>
+          </label>`;
+        }).join('');
+        wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>${group.required ? 'Select one option' : 'Select one or skip'}</p></div>${group.required ? '<span class="order-required">Required</span>' : ''}</div>${rows}`;
         fields.append(wrapper);
       });
     }
@@ -298,6 +304,12 @@
         if (total >= selectedItem.fanverse.portionCount) return;
       }
       if (group === 'sides') next = Math.min(99, next);
+      const customGroup = selectedItem.customOptions?.find(option => option.key === group && option.multiple);
+      if (customGroup && direction > 0) {
+        const total = Object.values(optionGroupCounts(group)).reduce((sum, value) => sum + value, 0);
+        if (total >= customGroup.maxCount) return;
+        next = Math.min(customGroup.maxCount, next);
+      }
       count.textContent = next;
       document.getElementById('item-options-error').textContent = '';
       updateOptionTotal();
@@ -314,6 +326,9 @@
   });
 
   document.getElementById('option-quantity')?.addEventListener('input', updateOptionTotal);
+  document.getElementById('item-options-fields')?.addEventListener('change', event => {
+    if (event.target.matches('input[type="radio"][data-option-key]')) updateOptionTotal();
+  });
 
   document.addEventListener('click', event => {
     const addButton = event.target.closest('[data-add-item]');
@@ -331,7 +346,11 @@
       if (!entry) return;
       if (cartButton.dataset.cartAction === 'increase') entry.quantity = Math.min(99, entry.quantity + 1);
       if (cartButton.dataset.cartAction === 'decrease') entry.quantity -= 1;
-      if (cartButton.dataset.cartAction === 'remove' || entry.quantity <= 0) cart.splice(index, 1);
+      if (cartButton.dataset.cartAction === 'remove') {
+        const title = menuItems.get(entry.id)?.name || 'this item';
+        if (!window.confirm(`Remove ${title} from your basket?`)) return;
+        cart.splice(index, 1);
+      } else if (entry.quantity <= 0) cart.splice(index, 1);
       renderCart();
     }
   });
@@ -357,9 +376,11 @@
         specialRequest: document.getElementById('option-special-request').value.trim(),
       };
     } else {
-      for (const group of selectedItem.options) {
-        options[group.key] = document.getElementById(`option-${group.key}`).value;
-      }
+      const groups = selectedItem.customOptions || selectedItem.options;
+      const selections = {};
+      for (const group of groups) selections[group.key] = group.multiple ? optionGroupCounts(group.key) : document.querySelector(`input[name="option-${group.key}"]:checked`)?.value || '';
+      if (selectedItem.customOptions?.length) options.choiceSelections = selections;
+      else Object.assign(options, selections);
       const specialRequest = document.getElementById('option-special-request').value.trim();
       if (specialRequest) options.specialRequest = specialRequest;
     }

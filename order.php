@@ -36,6 +36,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['fulfillment'] ?? '') === 'p
 $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
 
+function orderItemOptions(string $name): array {
+	$chicken = preg_match('/chicken|chikin|bonless|chix|bap bowl/i', $name) === 1;
+	$meal = preg_match('/meal|rice|bibimbowl|bap bowl|poppers|sandwich|snackwich|beef|chix|pork bbq/i', $name) === 1;
+	if ((!$chicken && !$meal) || preg_match('/Fanverse Meal$/', $name)) return [];
+	$flavors = ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'YangNyeom', 'Snow Cheese', 'Golden Crunch'];
+	$groups = $chicken ? [[ 'key' => 'flavor', 'label' => 'Choice of Chicken Flavors', 'required' => true,
+		'choices' => array_map(static fn($v) => ['name' => $v, 'priceCents' => 0], $flavors) ]] : [];
+	if ($meal) {
+		$groups[] = ['key' => 'sides', 'label' => 'Choice of Sides', 'required' => false, 'multiple' => true, 'maxCount' => 9, 'choices' => [
+			['name' => 'Cheeseballs - Plain w/ Pizza Sauce (1pc)', 'priceCents' => 4700], ['name' => 'Cheeseballs - Snowcheese (1pc)', 'priceCents' => 4700], ['name' => 'Kimchi', 'priceCents' => 4700],
+		]];
+		$groups[] = ['key' => 'drink', 'label' => 'Choice of Drink', 'required' => true, 'choices' => [
+			['name' => 'Regular Iced Tea', 'priceCents' => 0], ['name' => 'Large Iced Tea', 'priceCents' => 4000],
+			['name' => 'Caramel Snow Ice Coffee Drink Upgrade', 'priceCents' => 9500], ['name' => 'Chocolate Snow Ice Coffee Drink Upgrade', 'priceCents' => 9500],
+		]];
+		$groups[] = ['key' => 'riceUpgrade', 'label' => 'Upgrade to Kimchi Rice', 'required' => false, 'choices' => [['name' => 'Kimchi Rice Upgrade', 'priceCents' => 5100]]];
+		$groups[] = ['key' => 'soup', 'label' => 'Add-ons', 'required' => false, 'choices' => [['name' => 'Add on Bulgogi Soup', 'priceCents' => 6800]]];
+	}
+	return $groups;
+}
+
 if (!empty($_SESSION['user_id'])) {
 		try {
 				$profileQuery = $pdo->prepare('SELECT first_name, last_name, home_addr, mobileno FROM user_info WHERE user_id = ?');
@@ -185,6 +206,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								'specialRequest' => $specialRequest,
 							];
 							$addOnTotal = $sideCount * 269.00;
+						} elseif (isset($submittedOptions['choiceSelections'])) {
+							$selection = $submittedOptions['choiceSelections'];
+							$optionConfig = orderItemOptions($item['name']);
+							if (!$optionConfig) { $errors[] = 'Options are not available for this item.'; break; }
+							foreach ($optionConfig as $group) {
+								$value = $selection[$group['key']] ?? '';
+								if (!empty($group['multiple'])) {
+									if (!is_array($value)) { $errors[] = 'One side selection is invalid.'; break; }
+									$countTotal = 0; $validCounts = [];
+									foreach ($value as $choiceName => $count) {
+										$choice = null; foreach ($group['choices'] as $candidate) if ($candidate['name'] === $choiceName) $choice = $candidate;
+										$count = filter_var($count, FILTER_VALIDATE_INT);
+										if (!$choice || $count === false || $count < 1) { $errors[] = 'One side selection is invalid.'; break; }
+										$validCounts[$choiceName] = $count; $countTotal += $count; $addOnTotal += ($choice['priceCents'] / 100) * $count;
+									}
+									if ($errors) break;
+									if ($countTotal > (int)$group['maxCount']) { $errors[] = 'Choose up to ' . (int)$group['maxCount'] . ' side options.'; break; }
+									if ($validCounts) $options[$group['key']] = $validCounts;
+									continue;
+								}
+								if ($group['required'] && !in_array($value, array_column($group['choices'], 'name'), true)) { $errors[] = 'Choose an option for ' . $group['label'] . '.'; break; }
+								if ($value !== '') {
+									$choice = null;
+									foreach ($group['choices'] as $candidate) if ($candidate['name'] === $value) $choice = $candidate;
+									if (!$choice) { $errors[] = 'One item option is invalid.'; break; }
+									$options[$group['key']] = $value;
+									$addOnTotal += $choice['priceCents'] / 100;
+								}
+							}
+							if ($errors) break;
+							if ($specialRequest !== '') $options['specialRequest'] = $specialRequest;
 						} elseif (in_array($item['name'], ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
 								$glaze = $submittedOptions['glaze'] ?? '';
 								$validGlazes = ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'Golden Crunch', 'Snow Cheese'];
@@ -299,6 +351,7 @@ try {
 		foreach ($allItems as $item) {
 				$itemsByCategory[$item['category_id']][] = $item;
 				$optionGroups = [];
+				$customOptions = orderItemOptions($item['name']);
 				$fanverse = null;
 				if (preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch)) {
 					$fanverse = [
@@ -329,6 +382,7 @@ try {
 						'imageUrl' => $item['image_url'],
 						'description' => $item['description'],
 						'options' => $optionGroups,
+						'customOptions' => $customOptions,
 						'fanverse' => $fanverse,
 				];
 		}
