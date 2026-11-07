@@ -9,6 +9,9 @@
   const optionModal = optionModalElement ? bootstrap.Modal.getOrCreateInstance(optionModalElement) : null;
   const scheduleModalElement = document.getElementById('schedule-time-modal');
   const scheduleModal = scheduleModalElement ? bootstrap.Modal.getOrCreateInstance(scheduleModalElement) : null;
+  const removeModalElement = document.getElementById('remove-item-modal');
+  const removeModal = removeModalElement ? bootstrap.Modal.getOrCreateInstance(removeModalElement) : null;
+  let pendingRemoveIndex = null;
   const formatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
   let cart = [];
   let selectedItem = null;
@@ -348,11 +351,22 @@
       if (cartButton.dataset.cartAction === 'decrease') entry.quantity -= 1;
       if (cartButton.dataset.cartAction === 'remove') {
         const title = menuItems.get(entry.id)?.name || 'this item';
-        if (!window.confirm(`Remove ${title} from your basket?`)) return;
-        cart.splice(index, 1);
+        pendingRemoveIndex = index;
+        document.getElementById('remove-item-name').textContent = title;
+        removeModal?.show();
+        return;
       } else if (entry.quantity <= 0) cart.splice(index, 1);
       renderCart();
     }
+  });
+
+  document.getElementById('confirm-remove-item')?.addEventListener('click', () => {
+    if (pendingRemoveIndex !== null && cart[pendingRemoveIndex]) {
+      cart.splice(pendingRemoveIndex, 1);
+      renderCart();
+    }
+    pendingRemoveIndex = null;
+    removeModal?.hide();
   });
 
   document.getElementById('item-options-form')?.addEventListener('submit', event => {
@@ -404,13 +418,13 @@
       const delivery = fulfillment === 'delivery';
       deliveryFields.hidden = !delivery;
       pickupFields.hidden = delivery;
-      document.getElementById('delivery-address').required = delivery;
-      document.getElementById('pickup-location').required = !delivery;
+      document.querySelectorAll('input[name="address_id"]').forEach(input => { input.required = true; });
       document.querySelector('[data-card-payment]').hidden = delivery;
       const cardPayment = document.querySelector('input[value="card_pickup"]');
       cardPayment.disabled = delivery;
       if (delivery && cardPayment.checked) document.querySelector('input[value="cash"]').checked = true;
-      document.getElementById('delivery-fee-label').textContent = delivery ? 'Calculated after address confirmation' : '₱0.00';
+      if (!delivery) document.getElementById('delivery-fee-label').textContent = '₱0.00';
+      document.dispatchEvent(new CustomEvent('order:fulfillment-changed', { detail: { fulfillment } }));
       syncScheduleSummary();
     });
   });

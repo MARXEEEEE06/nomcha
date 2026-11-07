@@ -8,7 +8,7 @@ if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
 $errors = [];
 $notice = $_SESSION['registration_notice'] ?? null;
 unset($_SESSION['registration_notice']);
-$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'home_addr' => '', 'email_addr' => '', 'mobileno' => ''];
+$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'province' => '', 'municipality' => '', 'barangay' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
 $password = $confirm = '';
 $verifying = !empty($_SESSION['registration_challenge_id']);
 
@@ -58,10 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!is_array($data)) throw new RuntimeException('Registration data is unavailable.');
                     $pdo->beginTransaction();
                     $pdo->prepare('INSERT INTO user_info (first_name, middle_name, last_name, home_addr, mobileno) VALUES (?, ?, ?, ?, ?)')
-                        ->execute([$data['first_name'], $data['middle_name'] ?: null, $data['last_name'], $data['home_addr'], $data['mobileno']]);
+                        ->execute([$data['first_name'], $data['middle_name'] ?: null, $data['last_name'], $data['street_address'], $data['mobileno']]);
                     $userId = (int)$pdo->lastInsertId();
                     $pdo->prepare('INSERT INTO user_credentials (user_id, email_addr, password) VALUES (?, ?, ?)')
                         ->execute([$userId, $email, $data['password_hash']]);
+                    $pdo->prepare('INSERT INTO user_addresses (user_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+                        ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['province'], $data['municipality'], $data['barangay'], $data['zip_code'], $data['latitude'], $data['longitude']]);
                     $pdo->commit();
                     $pdo->prepare('UPDATE auth_otp_challenges SET registration_data = NULL WHERE challenge_id = ?')->execute([$challengeId]);
                     auth_security_log($pdo, 'registration', $email, 'registration', 'completed');
@@ -100,7 +102,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'first_name' => $old['first_name'],
                         'middle_name' => $old['middle_name'],
                         'last_name' => $old['last_name'],
-                        'home_addr' => $old['home_addr'],
+                        'recipient_name' => $old['recipient_name'],
+                        'street_address' => $old['street_address'],
+                        'province' => $old['province'],
+                        'municipality' => $old['municipality'],
+                        'barangay' => $old['barangay'],
+                        'zip_code' => $old['zip_code'],
+                        'latitude' => $old['latitude'],
+                        'longitude' => $old['longitude'],
                         'mobileno' => $mobile,
                         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
                     ];
@@ -123,7 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Register';
-$pageScripts = '<script src="assets/js/auth.js"></script>';
+$pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/address-map.js"></script>';
 require 'includes/header.php';
 ?>
 
@@ -156,29 +166,31 @@ require 'includes/header.php';
       <?php else: ?>
         <form method="post" action="register.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <div class="row">
+          <fieldset class="mb-4"><legend class="h5">Personal info</legend><div class="row">
             <div class="col-md-4"><?php form_field('first_name', 'First name', 'text', $old['first_name'], $errors['first_name'] ?? null, 'required maxlength="100" autocomplete="given-name"'); ?></div>
             <div class="col-md-4"><?php form_field('middle_name', 'Middle name (optional)', 'text', $old['middle_name'], $errors['middle_name'] ?? null, 'maxlength="100" autocomplete="additional-name"'); ?></div>
             <div class="col-md-4"><?php form_field('last_name', 'Last name', 'text', $old['last_name'], $errors['last_name'] ?? null, 'required maxlength="100" autocomplete="family-name"'); ?></div>
-          </div>
-          <?php form_field('home_addr', 'Home address', 'text', $old['home_addr'], $errors['home_addr'] ?? null, 'required maxlength="255" autocomplete="street-address"'); ?>
-          <div class="row register-contact-row">
-            <div class="col-md-6"><?php form_field('email_addr', 'Email address', 'email', $old['email_addr'], $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?></div>
-            <div class="col-md-6"><?php form_field('mobileno', 'Mobile number', 'tel', $old['mobileno'], $errors['mobileno'] ?? null, 'required maxlength="13" inputmode="tel" placeholder="09XXXXXXXXX" pattern="(09\d{9}|\+639\d{9})" autocomplete="tel"'); ?></div>
-          </div>
-          <div class="row">
+          </div></fieldset>
+          <fieldset class="mb-4"><legend class="h5">Password</legend><div class="row">
             <div class="col-md-6">
               <?php password_field('password', 'Password', $password, $errors['password'] ?? null, 'required minlength="8" maxlength="72" autocomplete="new-password"'); ?>
               <ul id="pw-rules" class="pw-rules mb-3">
-                <li data-rule="len"><i class="bi bi-circle"></i> At least 8 characters</li>
-                <li data-rule="lower"><i class="bi bi-circle"></i> Lowercase letter</li>
-                <li data-rule="upper"><i class="bi bi-circle"></i> Uppercase letter</li>
-                <li data-rule="number"><i class="bi bi-circle"></i> Number</li>
-                <li data-rule="special"><i class="bi bi-circle"></i> Special character</li>
+                <li data-rule="len"><i class="bi bi-circle"></i> At least 8 characters</li><li data-rule="lower"><i class="bi bi-circle"></i> Lowercase letter</li><li data-rule="upper"><i class="bi bi-circle"></i> Uppercase letter</li><li data-rule="number"><i class="bi bi-circle"></i> Number</li><li data-rule="special"><i class="bi bi-circle"></i> Special character</li>
               </ul>
             </div>
             <div class="col-md-6"><?php password_field('confirm_password', 'Confirm password', $confirm, $errors['confirm_password'] ?? null, 'required maxlength="72" autocomplete="new-password"'); ?></div>
-          </div>
+          </div></fieldset>
+          <fieldset class="mb-4"><legend class="h5">Contact info</legend><div class="row register-contact-row">
+            <div class="col-md-6"><?php form_field('email_addr', 'Email address', 'email', $old['email_addr'], $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?></div>
+            <div class="col-md-6"><?php form_field('mobileno', 'Mobile number', 'tel', $old['mobileno'], $errors['mobileno'] ?? null, 'required maxlength="13" inputmode="tel" placeholder="09XXXXXXXXX" pattern="(09\d{9}|\+639\d{9})" autocomplete="tel"'); ?></div>
+          </div></fieldset>
+          <fieldset class="mb-4"><legend class="h5">Billing address <small class="text-secondary">(default)</small></legend>
+            <?php form_field('recipient_name', 'Recipient name', 'text', $old['recipient_name'], $errors['recipient_name'] ?? null, 'required maxlength="120" autocomplete="name" placeholder="e.g. Juan Dela Cruz"'); ?>
+            <?php form_field('street_address', 'Address', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required maxlength="255" autocomplete="address-line1" placeholder="e.g. 123 Street, Camella Subdiv., 2nd Floor ABC Bldg."'); ?>
+            <div class="row"><div class="col-md-3"><?php form_field('province', 'City / Province', 'text', $old['province'], $errors['province'] ?? null, 'required maxlength="120" placeholder="e.g. Metro Manila"'); ?></div><div class="col-md-3"><?php form_field('municipality', 'Municipality', 'text', $old['municipality'], $errors['municipality'] ?? null, 'required maxlength="120" placeholder="e.g. Quezon City"'); ?></div><div class="col-md-3"><?php form_field('barangay', 'Barangay', 'text', $old['barangay'], $errors['barangay'] ?? null, 'required maxlength="120" placeholder="e.g. Bago Bantay"'); ?></div><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
+            <label class="form-label" for="address-map">Map pin location</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div>
+            <div class="row mt-2"><div class="col-sm-6"><?php form_field('latitude', 'Latitude', 'number', $old['latitude'], $errors['latitude'] ?? null, 'required step="any" min="-90" max="90"'); ?></div><div class="col-sm-6"><?php form_field('longitude', 'Longitude', 'number', $old['longitude'], $errors['longitude'] ?? null, 'required step="any" min="-180" max="180"'); ?></div></div>
+          </fieldset>
           <button type="submit" class="btn btn-auth w-100 py-2 mt-2">Send verification code</button>
         </form>
       <?php endif; ?>

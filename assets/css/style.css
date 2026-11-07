@@ -257,6 +257,20 @@ html { scroll-behavior: smooth; }
 .order-totals { padding: .8rem 0; border-top: 1px solid rgba(74,52,40,.14); }
 .order-totals > div { display: flex; justify-content: space-between; gap: .7rem; font-size: .82rem; }
 .order-totals strong { color: var(--nc-red); }
+.saved-address-card { transition: background-color .15s ease, border-color .15s ease; }
+.saved-address-card:hover, .saved-address-card.is-default { border-color: var(--nc-orange) !important; background: rgba(185,154,123,.12); }
+.order-branch-choice { width: 100%; padding: .65rem; border: 1px solid rgba(74,52,40,.18); border-radius: .3rem; background: #fff; color: var(--nc-ink); text-align: left; }
+.order-branch-choice:hover { border-color: var(--nc-orange); background: rgba(185,154,123,.12); }
+.order-branch-map { height: min(62vh, 540px); min-height: 340px; overflow: hidden; border-radius: .35rem; }
+.order-branch-results { display: grid; max-height: 190px; overflow-y: auto; }
+.order-branch-result { padding: .55rem .7rem; border: 0; border-bottom: 1px solid rgba(74,52,40,.1); background: #fff; color: var(--nc-ink); text-align: left; }
+.order-branch-result:hover, .order-branch-result.active { background: rgba(185,154,123,.2); }
+.order-selected-address { display: grid; gap: .18rem; margin: .25rem 0 .6rem; padding: .65rem; border: 1px solid rgba(74,52,40,.12); border-radius: .3rem; background: #fbf8f4; font-size: .75rem; }
+.order-selected-address:empty { display: none; }
+.order-address-list { display: grid; gap: .4rem; max-height: 190px; overflow-y: auto; }
+.order-address-option { display: flex; align-items: flex-start; gap: .5rem; margin: 0; padding: .6rem; border: 1px solid rgba(74,52,40,.16); border-radius: .3rem; background: #fff; color: var(--nc-ink); cursor: pointer; font-size: .72rem; line-height: 1.5; transition: background-color .15s ease, border-color .15s ease; }
+.order-address-option:hover, .order-address-option.selected { border-color: var(--nc-orange); background: rgba(185,154,123,.16); }
+.order-address-option input { flex: 0 0 auto; margin-top: .2rem; accent-color: var(--nc-orange); }
 .order-fee-row { margin-top: .4rem; color: #746b64; font-size: .7rem !important; }
 .order-form-section { margin: .7rem 0 0; padding: .8rem 0 0; border: 0; border-top: 1px solid rgba(74,52,40,.14); }
 .order-form-section legend { float: none; width: auto; margin: 0 0 .55rem; color: var(--nc-red); font-family: 'Poppins', sans-serif; font-size: .86rem; font-weight: 600; }

@@ -52,6 +52,7 @@ function navActive(string $file, string $current): string {
               <i class="bi bi-person-circle me-1"></i><?= htmlspecialchars($displayName) ?>
             </button>
             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-nomcha">
+              <li><a class="dropdown-item" href="billing-address.php"><i class="bi bi-geo-alt me-2"></i>Billing Address</a></li>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>
           </div>

@@ -15,6 +15,11 @@ if (empty($_SESSION['user_id'])) {
 }
 
 $pageTitle = 'Order Online';
+$pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
+$branches = json_decode((string)file_get_contents(__DIR__ . '/assets/branches-data.json'), true) ?: [];
+$savedAddresses = [];
+$selectedAddress = null;
+$selectedBranch = null;
 $scheduleTimezone = new DateTimeZone('Asia/Manila');
 $scheduleNow = new DateTimeImmutable('now', $scheduleTimezone);
 $errors = [];
@@ -27,11 +32,16 @@ $form = [
 		'pickup_location' => '',
 		'scheduled_for' => '',
 		'payment_method' => 'cash',
+		'address_id' => '',
+		'branch_id' => '',
 ];
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['fulfillment'] ?? '') === 'pickup') {
 		$form['fulfillment'] = 'pickup';
 		$pickupLocation = trim((string)($_GET['pickup_location'] ?? ''));
-		if (mb_strlen($pickupLocation) <= 255) $form['pickup_location'] = $pickupLocation;
+		if (mb_strlen($pickupLocation) <= 255) {
+			$form['pickup_location'] = $pickupLocation;
+			foreach ($branches as $branch) if ($pickupLocation === $branch['address'] || $pickupLocation === $branch['name']) { $form['branch_id'] = (string)$branch['id']; $selectedBranch = $branch; break; }
+		}
 }
 $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
@@ -57,6 +67,13 @@ function orderItemOptions(string $name): array {
 	return $groups;
 }
 
+function orderAddressLabel(array $address): string {
+	return implode(', ', array_filter([
+		$address['street_address'] ?? '', $address['barangay'] ?? '', $address['municipality'] ?? '',
+		$address['province'] ?? '', $address['zip_code'] ?? '',
+	], static fn($part): bool => trim((string)$part) !== ''));
+}
+
 if (!empty($_SESSION['user_id'])) {
 		try {
 				$profileQuery = $pdo->prepare('SELECT first_name, last_name, home_addr, mobileno FROM user_info WHERE user_id = ?');
@@ -65,6 +82,23 @@ if (!empty($_SESSION['user_id'])) {
 						$form['customer_name'] = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
 						$form['phone'] = $profile['mobileno'] ?? '';
 						$form['delivery_address'] = $profile['home_addr'] ?? '';
+				}
+				$addressQuery = $pdo->prepare('SELECT address_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude, is_default FROM user_addresses WHERE user_id = ? ORDER BY is_default DESC, address_id DESC');
+				$addressQuery->execute([(int)$_SESSION['user_id']]);
+				$savedAddresses = $addressQuery->fetchAll();
+				$defaultAddresses = array_values(array_filter($savedAddresses, static fn(array $row): bool => (int)$row['is_default'] === 1));
+				if (count($defaultAddresses) > 1) {
+					$keepAddressId = (int)$defaultAddresses[0]['address_id'];
+					$pdo->prepare('UPDATE user_addresses SET is_default = CASE WHEN address_id = ? THEN 1 ELSE 0 END WHERE user_id = ?')->execute([$keepAddressId, (int)$_SESSION['user_id']]);
+					foreach ($savedAddresses as &$savedRow) $savedRow['is_default'] = (int)$savedRow['address_id'] === $keepAddressId ? 1 : 0;
+					unset($savedRow);
+				}
+				if ($savedAddresses) {
+						$selectedAddress = $savedAddresses[0];
+						$form['address_id'] = (string)$selectedAddress['address_id'];
+						$form['customer_name'] = $selectedAddress['recipient_name'];
+						$form['phone'] = $selectedAddress['mobile_no'] ?? $form['phone'];
+						$form['delivery_address'] = orderAddressLabel($selectedAddress);
 				}
 		} catch (PDOException $ex) {
 		}
@@ -75,6 +109,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				$form[$key] = trim((string)($_POST[$key] ?? $default));
 		}
 		$form['fulfillment'] = in_array($form['fulfillment'], ['delivery', 'pickup'], true) ? $form['fulfillment'] : 'delivery';
+		if ($form['address_id'] !== '') {
+			$addressLookup = $pdo->prepare('SELECT address_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude FROM user_addresses WHERE user_id = ? AND address_id = ?');
+			$addressLookup->execute([(int)$_SESSION['user_id'], (int)$form['address_id']]);
+			$selectedAddress = $addressLookup->fetch() ?: null;
+		}
+		if (!$selectedAddress) $errors[] = 'Choose a saved billing address.';
+		else {
+			$form['customer_name'] = $selectedAddress['recipient_name'];
+			$form['phone'] = $selectedAddress['mobile_no'] ?? '';
+			$form['delivery_address'] = orderAddressLabel($selectedAddress);
+			if ($form['fulfillment'] === 'delivery' && (trim((string)$selectedAddress['street_address']) === '' || !preg_match('/^\d{4}$/', (string)$selectedAddress['zip_code']))) $errors[] = 'Please complete the Address and ZIP code fields for this billing address before delivery.';
+		}
+		foreach ($branches as $branch) if ((string)$branch['id'] === (string)$form['branch_id']) { $selectedBranch = $branch; break; }
+		if (!$selectedBranch || ($form['fulfillment'] === 'pickup' && empty($selectedBranch['pickup']))) $errors[] = 'Choose an available Nomcha branch.';
+		else $form['pickup_location'] = $selectedBranch['name'];
 
 		if (!csrf_check($_POST['csrf'] ?? null)) {
 				$errors[] = 'Your session expired. Refresh the page and try again.';
@@ -264,23 +313,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				}
 		}
 
+		$deliveryDistanceKm = 0.0;
+		if (!$errors && $form['fulfillment'] === 'delivery') {
+			if (!$selectedAddress || $selectedAddress['latitude'] === null || $selectedAddress['longitude'] === null || !$selectedBranch) {
+				$errors[] = 'Choose a billing address with a map pin and a Nomcha branch to calculate delivery.';
+			} else {
+				$rad = static fn(float $value): float => $value * M_PI / 180;
+				$lat1 = (float)$selectedAddress['latitude']; $lat2 = (float)$selectedBranch['lat'];
+				$dLat = $rad($lat2 - $lat1); $dLng = $rad((float)$selectedBranch['lng'] - (float)$selectedAddress['longitude']);
+				$a = sin($dLat / 2) ** 2 + cos($rad($lat1)) * cos($rad($lat2)) * sin($dLng / 2) ** 2;
+				$deliveryDistanceKm = 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
+			}
+		}
+		$deliveryFee = $form['fulfillment'] === 'pickup' ? 0.00 : round(30 + ceil($deliveryDistanceKm) * 10, 2);
 		if (!$errors && $orderLines) {
 				try {
 						$pdo->beginTransaction();
 						$userId = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 						$orderNumber = 'NC' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
-						$deliveryFee = $form['fulfillment'] === 'pickup' ? 0.00 : null;
-						$total = $form['fulfillment'] === 'pickup' ? $subtotal : null;
+						$total = round($subtotal + $deliveryFee, 2);
 						$pdo->prepare(
 								'INSERT INTO customer_orders
-								 (order_number, user_id, fulfillment, customer_name, phone, delivery_address,
+								 (order_number, user_id, fulfillment, branch_id, customer_name, phone, delivery_address,
 									delivery_instructions, pickup_location, scheduled_for, payment_method,
 									subtotal, delivery_fee, total)
-								 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+								 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 						)->execute([
 								$orderNumber,
 								$userId,
 								$form['fulfillment'],
+								$selectedBranch['id'],
 								$form['customer_name'],
 								$form['phone'],
 								$form['fulfillment'] === 'delivery' ? $form['delivery_address'] : null,
@@ -313,6 +375,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						$_SESSION['order_confirmation'] = [
 								'number' => $orderNumber,
 								'subtotal' => $subtotal,
+								'delivery_fee' => $deliveryFee,
+								'total' => $total,
 								'fulfillment' => $form['fulfillment'],
 						];
 						header('Location: order.php?placed=1');
@@ -461,8 +525,8 @@ require 'includes/header.php';
 				<i class="bi bi-check-circle-fill" aria-hidden="true"></i>
 				<div>
 					<h2 class="h4 mb-1">Order request received</h2>
-					<p class="mb-1">Reference <strong><?= e($orderConfirmation['number']) ?></strong>. Nomcha will contact you to confirm availability<?= $orderConfirmation['fulfillment'] === 'delivery' ? ', delivery fee, and address coverage' : ' and pickup timing' ?>.</p>
-					<p class="mb-0">Item subtotal: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong>. No online payment was taken.</p>
+					<p class="mb-1">Reference <strong><?= e($orderConfirmation['number']) ?></strong>. Nomcha will contact you to confirm availability<?= $orderConfirmation['fulfillment'] === 'delivery' ? ' and delivery coverage' : ' and pickup timing' ?>.</p>
+					<p class="mb-0">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Estimated delivery: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
 				</div>
 			</div>
 		</section>
@@ -622,35 +686,34 @@ require 'includes/header.php';
 						</div>
 						<div class="order-totals">
 							<div><span>Item subtotal</span><strong id="cart-subtotal">₱0.00</strong></div>
-							<div class="order-fee-row"><span>Delivery fee</span><span id="delivery-fee-label">Calculated after address confirmation</span></div>
+							<div class="order-fee-row"><span>Delivery fee</span><span id="delivery-fee-label">Choose address and branch</span></div>
 						</div>
 
 						<fieldset class="order-form-section">
 							<legend>Receive your order</legend>
 							<div class="order-mode-switch" role="group" aria-label="Fulfillment type">
-								<button type="button" class="active" data-fulfillment-option="delivery" aria-pressed="true"><i class="bi bi-bicycle" aria-hidden="true"></i>Delivery</button>
-								<button type="button" data-fulfillment-option="pickup" aria-pressed="false"><i class="bi bi-shop" aria-hidden="true"></i>Pickup</button>
+							<button type="button" class="<?= $form['fulfillment']==='delivery'?'active':'' ?>" data-fulfillment-option="delivery" aria-pressed="<?= $form['fulfillment']==='delivery'?'true':'false' ?>"><i class="bi bi-bicycle" aria-hidden="true"></i>Delivery</button>
+							<button type="button" class="<?= $form['fulfillment']==='pickup'?'active':'' ?>" data-fulfillment-option="pickup" aria-pressed="<?= $form['fulfillment']==='pickup'?'true':'false' ?>"><i class="bi bi-shop" aria-hidden="true"></i>Pickup</button>
 							</div>
 							<input type="hidden" name="fulfillment" id="fulfillment" value="<?= e($form['fulfillment']) ?>">
-							<div data-delivery-fields>
-								<label for="delivery-address" class="form-label">Delivery address</label>
-								<input id="delivery-address" class="form-control mb-2" type="text" name="delivery_address" maxlength="500" autocomplete="street-address" placeholder="House, street, barangay, city" value="<?= e($form['delivery_address']) ?>">
+						<input type="hidden" name="branch_id" id="branch-id" value="<?=e($form['branch_id'])?>">
+						<div>
+							<label class="form-label">Billing address</label>
+			<div class="order-address-list" role="radiogroup" aria-label="Choose a saved billing address"><?php foreach($savedAddresses as $saved): ?><label class="order-address-option <?= (string)$saved['address_id']===(string)$form['address_id']?'selected':'' ?>"><input type="radio" name="address_id" value="<?=(int)$saved['address_id']?>" data-lat="<?=e((string)$saved['latitude'])?>" data-lng="<?=e((string)$saved['longitude'])?>" data-name="<?=e($saved['recipient_name'])?>" data-mobile="<?=e($saved['mobile_no'])?>" data-address="<?=e(orderAddressLabel($saved))?>" <?= (string)$saved['address_id']===(string)$form['address_id']?'checked':'' ?> required><span><strong>Name:</strong> <?=e($saved['recipient_name'])?><br><strong>Address:</strong> <?=e(orderAddressLabel($saved))?><br><strong>Mobile number:</strong> <?=e($saved['mobile_no'])?><?php if(trim((string)$saved['street_address'])==='' || !preg_match('/^\d{4}$/',(string)$saved['zip_code'])): ?><br><small class="text-danger">Complete Address and ZIP code in Billing Address to enable delivery.</small><?php endif; ?></span></label><?php endforeach; ?></div>
+							<?php if(!$savedAddresses): ?><p class="order-helper">Add a saved billing address before placing an order. <a href="billing-address.php">Manage addresses</a></p><?php endif; ?>
+							<div id="selected-address-summary" class="order-selected-address"></div>
+						</div>
+						<div data-delivery-fields>
 								<label for="delivery-instructions" class="form-label">Rider instructions <span class="text-secondary">(optional)</span></label>
 								<textarea id="delivery-instructions" class="form-control" name="delivery_instructions" rows="2" maxlength="500" placeholder="Gate, landmark, or delivery notes"><?= e($form['delivery_instructions']) ?></textarea>
 							</div>
 							<div data-pickup-fields hidden>
-								<label for="pickup-location" class="form-label">Pickup branch or location</label>
-								<input id="pickup-location" class="form-control" type="text" name="pickup_location" maxlength="255" placeholder="Enter the Nomcha branch you prefer" value="<?= e($form['pickup_location']) ?>">
-								<p class="order-helper">We’ll confirm branch availability and pickup timing with you.</p>
+							<p class="order-helper">Choose a branch for pickup below.</p>
 							</div>
-						</fieldset>
-
-						<fieldset class="order-form-section">
-							<legend>Contact details</legend>
-							<label for="customer-name" class="form-label">Name</label>
-							<input id="customer-name" class="form-control mb-2" type="text" name="customer_name" required maxlength="120" autocomplete="name" value="<?= e($form['customer_name']) ?>">
-							<label for="customer-phone" class="form-label">Mobile number</label>
-							<input id="customer-phone" class="form-control" type="tel" name="phone" required maxlength="13" autocomplete="tel" placeholder="09XXXXXXXXX" value="<?= e($form['phone']) ?>">
+						<div class="mt-2">
+							<label class="form-label" for="branch-choice-button">Nomcha branch</label>
+							<button type="button" class="order-branch-choice" id="branch-choice-button" data-bs-toggle="modal" data-bs-target="#branch-picker-modal"><span id="selected-branch-label"><?= $selectedBranch ? e($selectedBranch['name'].' · '.$selectedBranch['address']) : 'Choose a branch' ?></span><i class="bi bi-chevron-right float-end" aria-hidden="true"></i></button>
+							<p class="order-helper" id="delivery-distance-label" aria-live="polite"></p>
 						</fieldset>
 
 						<fieldset class="order-form-section">
@@ -712,6 +775,13 @@ require 'includes/header.php';
 	</div>
 </div>
 
+<div class="modal fade" id="branch-picker-modal" tabindex="-1" aria-labelledby="branch-picker-title" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered modal-xl"><div class="modal-content">
+		<div class="modal-header"><h2 class="modal-title h4" id="branch-picker-title">Choose a Nomcha branch</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+		<div class="modal-body"><label for="branch-picker-search" class="form-label">Search branches</label><input id="branch-picker-search" class="form-control mb-2" type="search" placeholder="Type a branch, city, or address" autocomplete="off"><div id="branch-picker-results" class="order-branch-results mb-3" role="listbox" aria-label="Branch search results"></div><div id="order-branch-map" class="order-branch-map" aria-label="Map of Nomcha branches"></div><p class="branch-map-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p></div>
+	</div></div>
+</div>
+
 <div class="modal fade" id="item-options-modal" tabindex="-1" aria-labelledby="item-options-title" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered modal-lg">
 		<div class="modal-content order-options-modal">
@@ -742,8 +812,14 @@ require 'includes/header.php';
 	</div>
 </div>
 
+<div class="modal fade" id="remove-item-modal" tabindex="-1" aria-labelledby="remove-item-title" aria-hidden="true">
+	<div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="remove-item-title">Remove from basket?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body">Remove <strong id="remove-item-name"></strong> from your basket?</div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep item</button><button type="button" class="btn btn-danger" id="confirm-remove-item">Remove item</button></div></div></div>
+</div>
+
 <script id="order-menu-data" type="application/json"><?= json_encode($menuData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
+<script id="order-branch-data" type="application/json"><?= json_encode($branches, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
+<script id="order-address-data" type="application/json"><?= json_encode($savedAddresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <?php
-$pageScripts = '<script src="assets/js/order.js?v=' . filemtime(__DIR__ . '/assets/js/order.js') . '"></script>';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/order.js?v=' . filemtime(__DIR__ . '/assets/js/order.js') . '"></script><script src="assets/js/order-branch-picker.js?v=' . filemtime(__DIR__ . '/assets/js/order-branch-picker.js') . '"></script>';
 require 'includes/footer.php';
 ?>

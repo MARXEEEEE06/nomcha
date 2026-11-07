@@ -34,7 +34,7 @@ CREATE TABLE `customer_orders` (
   `fulfillment` enum('delivery','pickup') NOT NULL,
   `customer_name` varchar(120) NOT NULL,
   `phone` varchar(20) NOT NULL,
-  `delivery_address` varchar(500) DEFAULT NULL,
+  `delivery_address` varchar(750) DEFAULT NULL,
   `delivery_instructions` varchar(500) DEFAULT NULL,
   `pickup_location` varchar(255) DEFAULT NULL,
   `scheduled_for` datetime DEFAULT NULL,
