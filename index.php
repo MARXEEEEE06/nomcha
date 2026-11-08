@@ -16,23 +16,82 @@ try {
 }
 ?>
 
-<!-- Hero -->
-<section class="hero" style="background-image:url('https://www.bonchon.com.ph/storage/cms_images/ira2JcqW9ygL2LFWED0yJnfB7xbypOVp1iWBPLfq.webp');">
-  <div class="container py-5">
-    <div class="col-lg-6">
-      <p class="text-uppercase fw-semibold mb-2" style="color:var(--nc-tan);letter-spacing:2px;">Welcome to Nomcha</p>
-      <h1 class="mb-3">Crispy. Saucy. Unforgettable.</h1>
-      <p class="lead mb-4">Double-fried to perfection and glazed with our signature sauces.</p>
-      <div class="d-flex flex-wrap gap-2">
-        <a href="menu.php" class="btn btn-login btn-lg">View Menu</a>
-        <a href="order.php" class="btn btn-order btn-lg">Order Now</a>
-      </div>
-    </div>
+<!-- Bonchon-inspired banner slideshow -->
+<section class="home-slideshow" aria-label="Featured banners">
+  <div class="home-slideshow-track" id="home-slideshow-track">
+    <img class="home-slide is-active" src="assets\slideshow\slide1.webp" alt="Featured Nomcha banner">
+    <img class="home-slide" src="assets\slideshow\slide2.jpg" alt="Featured Nomcha banner">
+    <img class="home-slide" src="assets\slideshow\slide3.jpg" alt="Featured Nomcha banner">
   </div>
+  <button class="slide-arrow slide-prev" type="button" aria-label="Previous image"><i class="bi bi-chevron-left"></i></button>
+  <button class="slide-arrow slide-next" type="button" aria-label="Next image"><i class="bi bi-chevron-right"></i></button>
+  <div class="slide-dots" role="tablist" aria-label="Choose banner image">
+    <button class="slide-dot is-active" type="button" aria-label="Show image 1" aria-current="true"></button>
+    <button class="slide-dot" type="button" aria-label="Show image 2"></button>
+    <button class="slide-dot" type="button" aria-label="Show image 3"></button>
+  </div>
+  <div class="slide-count" aria-live="polite"><span id="slide-current">1</span> / 3</div>
+  <div class="slide-progress" aria-hidden="true"><span id="slide-progress-fill"></span></div>
 </section>
+<?php
+$pageScripts = <<<'HTML'
+<script>
+(() => {
+  const slides = [...document.querySelectorAll('.home-slide')];
+  const dots = [...document.querySelectorAll('.slide-dot')];
+  const current = document.getElementById('slide-current');
+  if (!slides.length || !dots.length || !current) return;
+  let active = 0;
+  const intervalMs = 10000;
+  let timer;
+  const progress = document.getElementById('slide-progress-fill');
+  const track = document.getElementById('home-slideshow-track');
+  const show = (index) => {
+    active = (index + slides.length) % slides.length;
+    slides.forEach((slide, i) => slide.classList.toggle('is-active', i === active));
+    const activeSlide = slides[active];
+    if (activeSlide.complete && activeSlide.naturalWidth) {
+      track.style.setProperty('--banner-ratio', `${activeSlide.naturalWidth} / ${activeSlide.naturalHeight}`);
+    }
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('is-active', i === active);
+      if (i === active) { dot.setAttribute('aria-current', 'true'); }
+      else { dot.removeAttribute('aria-current'); }
+    });
+    current.textContent = String(active + 1);
+    if (progress) {
+      progress.classList.remove('is-running');
+      void progress.offsetWidth;
+      progress.classList.add('is-running');
+    }
+  };
+  slides.forEach(slide => slide.addEventListener('load', () => {
+    if (slide === slides[active] && slide.naturalWidth) {
+      track.style.setProperty('--banner-ratio', `${slide.naturalWidth} / ${slide.naturalHeight}`);
+    }
+  }));
+  const restartTimer = () => { window.clearInterval(timer); timer = window.setInterval(() => show(active + 1), intervalMs); };
+  document.querySelector('.slide-prev').addEventListener('click', () => { show(active - 1); restartTimer(); });
+  document.querySelector('.slide-next').addEventListener('click', () => { show(active + 1); restartTimer(); });
+  dots.forEach((dot, i) => dot.addEventListener('click', () => { show(i); restartTimer(); }));
+  const slideshow = document.querySelector('.home-slideshow');
+  let startX = null;
+  slideshow.addEventListener('touchstart', e => { startX = e.changedTouches[0].clientX; }, {passive:true});
+  slideshow.addEventListener('touchend', e => {
+    if (startX === null) return;
+    const delta = e.changedTouches[0].clientX - startX;
+    if (Math.abs(delta) > 45) { show(active + (delta < 0 ? 1 : -1)); restartTimer(); }
+    startX = null;
+  }, {passive:true});
+  show(active);
+  restartTimer();
+})();
+</script>
+HTML;
+?>
 
 <!-- Signature items -->
-<section class="container py-5">
+<section class="container py-5 home-section">
   <div class="text-center mb-5">
     <h2 class="section-title">Our Signature Favorites</h2>
     <p class="text-secondary mb-0">Customer picks you can't go wrong with.</p>
@@ -70,16 +129,16 @@ try {
 </section>
 
 <!-- Our Story -->
-<section class="band-dark py-5">
+<section class="band-dark py-5 home-story-section">
   <div class="container text-center col-lg-8">
     <h2 class="font-display mb-3">Our Story</h2>
-    <p class="mb-4 opacity-75">Placeholder copy. Tell the Nomcha story here: where it started, what makes the chicken different, and why people keep coming back.</p>
+    <p class="mb-4 opacity-75">Discover the delicious journey of Nomcha! From its humble beginnings to growing success, a deep passion for flavorful comfort food led to the creation of the ultimate crispy, tender, and satisfying dining experience. Beyond just great meals, Nomcha brings people together to celebrate culture and tradition with every delectable bite</p>
     <a href="#" class="btn btn-login">Read More</a>
   </div>
 </section>
 
 <!-- Branches CTA -->
-<section class="container py-5 text-center">
+<section class="container py-5 text-center home-section">
   <h2 class="section-title mb-3">Find a Branch Near You</h2>
   <p class="text-secondary mb-4">Dine in, take out, or order for delivery.</p>
   <a href="#" class="btn btn-order px-4">View Branches</a>

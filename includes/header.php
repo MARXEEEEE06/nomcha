@@ -27,7 +27,7 @@ function navActive(string $file, string $current): string {
 
 <nav class="navbar navbar-expand-xl navbar-nomcha sticky-top" data-bs-theme="dark">
   <div class="container">
-    <a class="navbar-brand" href="index.php">Nomcha</a>
+    <a class="navbar-brand" href="index.php"><img class="navbar-logo" src="assets\namcha_korean_favicon.png">Nomcha</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>

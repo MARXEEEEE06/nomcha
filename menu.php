@@ -55,6 +55,17 @@ function renderItems(array $items): void {
 }
 ?>
 
+<!-- Featured hero moved from the homepage -->
+<section class="hero" style="background-image:url('https://www.bonchon.com.ph/storage/cms_images/ira2JcqW9ygL2LFWED0yJnfB7xbypOVp1iWBPLfq.webp');">
+  <div class="container py-5">
+    <div class="col-lg-6">
+      <p class="text-uppercase fw-semibold mb-2" style="color:var(--nc-tan);letter-spacing:2px;">Welcome to Nomcha</p>
+      <h1 class="mb-3">Crispy. Saucy. Unforgettable.</h1>
+      <p class="lead mb-0">Double-fried to perfection and glazed with our signature sauces.</p>
+    </div>
+  </div>
+</section>
+
 <!-- Intro -->
 <section class="menu-intro text-center py-5">
   <div class="container col-lg-8">
