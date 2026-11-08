@@ -8,6 +8,7 @@
   const emptyState = document.getElementById('branch-empty');
   const locationButton = document.getElementById('branch-use-location');
   const locationStatus = document.getElementById('branch-location-status');
+  const rangeModal = document.getElementById('branch-range-modal');
   const provinceNames = [...new Set(branches.map(branch => branch.province))].sort();
   const RECOMMENDED_RANGE_KM = 10;
   let userLocation = null;
@@ -15,6 +16,8 @@
   let markers = new Map();
   let markerLayer = null;
   let userMarker = null;
+  let locationMode = false;
+  let rangeWarningShown = false;
 
   const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -59,7 +62,7 @@
         && (!provinceSelect.value || branch.province === provinceSelect.value)
         && (!citySelect.value || branch.city === citySelect.value);
     });
-    if (!userLocation) return filtered;
+    if (!locationMode || !userLocation) return filtered;
     const byDistance = filtered.map(branch => ({ ...branch, distance: distanceKm(userLocation, branch) }))
       .sort((a, b) => a.distance - b.distance);
     const nearby = byDistance.filter(branch => branch.distance <= RECOMMENDED_RANGE_KM);
@@ -137,14 +140,31 @@
       locationStatus.textContent = 'Location is not available in this browser.';
       return;
     }
+    if (locationMode && userLocation) {
+      locationMode = false;
+      locationButton.setAttribute('aria-pressed', 'false');
+      locationButton.classList.remove('is-active');
+      locationStatus.textContent = 'Showing all branches.';
+      renderResults();
+      return;
+    }
+    locationMode = true;
+    locationButton.setAttribute('aria-pressed', 'true');
+    locationButton.classList.add('is-active');
     locationButton.disabled = true;
     locationStatus.textContent = 'Finding branches near you…';
+    rangeWarningShown = false;
     navigator.geolocation.getCurrentPosition(position => {
       userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
       searchInput.value = '';
       provinceSelect.value = '';
+      citySelect.value = '';
       updateCityOptions();
-      locationStatus.textContent = `Showing branches within ${RECOMMENDED_RANGE_KM} km. If none are nearby, showing the closest branch.`;
+      const distances = branches.map(branch => distanceKm(userLocation, branch));
+      const hasNearby = distances.some(distance => distance <= RECOMMENDED_RANGE_KM);
+      locationStatus.textContent = hasNearby
+        ? `Showing branches within ${RECOMMENDED_RANGE_KM} km.`
+        : 'Showing the nearest branch.';
       locationButton.disabled = false;
       if (map) {
         if (userMarker) userMarker.remove();
@@ -153,8 +173,15 @@
         }).addTo(map).bindPopup('Your location');
       }
       renderResults();
+      if (!hasNearby && !rangeWarningShown) {
+        rangeWarningShown = true;
+        bootstrap.Modal.getOrCreateInstance(rangeModal).show();
+      }
     }, error => {
       locationButton.disabled = false;
+      locationMode = false;
+      locationButton.setAttribute('aria-pressed', 'false');
+      locationButton.classList.remove('is-active');
       locationStatus.textContent = error.code === error.PERMISSION_DENIED
         ? 'Location permission was not granted. You can still search by province or city.'
         : 'Could not determine your location. You can still search by province or city.';

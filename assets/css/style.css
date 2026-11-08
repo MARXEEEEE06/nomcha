@@ -505,6 +505,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--nc-orange) transparent; }
 .branch-search-panel .input-group-text { color: var(--nc-orange); background: #fff; }
 .branch-search-panel .form-control:focus, .branch-search-panel .form-select:focus { border-color: var(--nc-tan); box-shadow: 0 0 0 .2rem rgba(185,154,123,.25); }
 .branch-location-button { min-height: 42px; white-space: nowrap; }
+.branch-location-button:hover, .branch-location-button:focus-visible, .branch-location-button.is-active { background: #ac671e; border-color: #6f4c35; color: var(--nc-cream); }
 .branch-location-status { min-height: 1.3rem; margin: .35rem 0 .8rem; color: #65584f; font-size: .78rem; }
 .branch-results-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .85rem; }
 .branch-results-heading h2 { color: var(--nc-red); }

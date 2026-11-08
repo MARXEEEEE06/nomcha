@@ -31,8 +31,8 @@ require 'includes/header.php';
                 <label for="branch-city" class="form-label">City</label>
                 <select id="branch-city" class="form-select"><option value="">All cities</option></select>
             </div>
-            <button type="button" id="branch-use-location" class="btn btn-order branch-location-button">
-                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>Locate nearest branch
+            <button type="button" id="branch-use-location" class="btn btn-order branch-location-button" aria-pressed="false">
+                <i class="bi bi-crosshair me-2" aria-hidden="true"></i><span>Locate nearest branch</span>
             </button>
         </div>
         <p id="branch-location-status" class="branch-location-status" role="status" aria-live="polite"></p>
@@ -53,6 +53,20 @@ require 'includes/header.php';
         </div>
     </section>
 </main>
+
+<div class="modal fade" id="branch-range-modal" tabindex="-1" aria-labelledby="branch-range-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="branch-range-modal-title">No branches within range</h2>
+            </div>
+            <div class="modal-body">No branches are available within your area and the 10 km range limit. We’re showing the nearest branch only.</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-order" data-bs-dismiss="modal">Understood</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script id="branch-data" type="application/json"><?= json_encode($branches, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <?php
