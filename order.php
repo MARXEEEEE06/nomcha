@@ -2,6 +2,8 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 
+require_customer($pdo);
+
 if (empty($_SESSION['user_id'])) {
 	$loginRedirect = 'order.php';
 	if (($_GET['fulfillment'] ?? '') === 'pickup') {
@@ -47,8 +49,24 @@ $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
 
 function orderItemOptions(string $name): array {
-	$chicken = preg_match('/chicken|chikin|bonless|chix|bap bowl/i', $name) === 1;
-	$meal = preg_match('/meal|rice|bibimbowl|bap bowl|poppers|sandwich|snackwich|beef|chix|pork bbq/i', $name) === 1;
+	if (in_array($name, ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
+		return [[
+			'key' => 'glaze',
+			'label' => 'Choose a glaze',
+			'required' => true,
+			'choices' => array_map(static fn($value) => ['name' => $value, 'priceCents' => 0], ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'Golden Crunch', 'Snow Cheese']),
+		]];
+	}
+	if (strcasecmp($name, 'Chapchae') === 0) {
+		return [[
+			'key' => 'spiceLevel',
+			'label' => 'Choose your spice level',
+			'required' => true,
+			'choices' => array_map(static fn($value) => ['name' => $value, 'priceCents' => 0], ['Regular', 'Mild Spicy', 'Spicy']),
+		]];
+	}
+	$chicken = preg_match('/chicken|chikin|bonless|chix|bap bowl|poppers|sandwich|fish & chapchae|good for/i', $name) === 1;
+	$meal = preg_match('/meal|rice|bibimbowl|bap bowl|poppers|sandwich|snackwich|beef|chix|pork bbq|fish & chapchae|good for|fish n\s*[\'’] chix/i', $name) === 1;
 	if ((!$chicken && !$meal) || preg_match('/Fanverse Meal$/', $name)) return [];
 	$flavors = ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'YangNyeom', 'Snow Cheese', 'Golden Crunch'];
 	$groups = $chicken ? [[ 'key' => 'flavor', 'label' => 'Choice of Chicken Flavors', 'required' => true,
@@ -65,6 +83,12 @@ function orderItemOptions(string $name): array {
 		$groups[] = ['key' => 'soup', 'label' => 'Add-ons', 'required' => false, 'choices' => [['name' => 'Add on Bulgogi Soup', 'priceCents' => 6800]]];
 	}
 	return $groups;
+}
+
+function isOrderCustomizationItem(array $item): bool {
+	// These rack entries are flavor choices for the Chikin Rack, not separate products.
+	return (int)($item['category_id'] ?? 0) === 1
+		&& !preg_match('/^[0-9]+pc Chikin Rack Fanverse Meal$/', (string)($item['name'] ?? ''));
 }
 
 function orderAddressLabel(array $address): string {
@@ -180,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$orderLines = [];
 		$subtotal = 0.0;
 		if (!$errors) {
-				$itemQuery = $pdo->prepare('SELECT item_id, name, price FROM menu_items WHERE item_id = ? AND is_available = 1');
+			$itemQuery = $pdo->prepare('SELECT item_id, name, price, customizations_json FROM menu_items WHERE item_id = ? AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))');
 				foreach ($cart as $entry) {
 						$itemId = filter_var($entry['id'] ?? null, FILTER_VALIDATE_INT);
 						$quantity = filter_var($entry['quantity'] ?? null, FILTER_VALIDATE_INT);
@@ -197,6 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 						$options = [];
 						$addOnTotal = 0.0;
+						$optionConfig = json_decode((string)($item['customizations_json'] ?? ''), true);
+						if (!is_array($optionConfig)) $optionConfig = orderItemOptions($item['name']);
 						$submittedOptions = is_array($entry['options'] ?? null) ? $entry['options'] : [];
 						$specialRequestValue = $submittedOptions['specialRequest'] ?? '';
 						if (!is_string($specialRequestValue) || mb_strlen($specialRequestValue) > 500) {
@@ -255,9 +281,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								'specialRequest' => $specialRequest,
 							];
 							$addOnTotal = $sideCount * 269.00;
-						} elseif (isset($submittedOptions['choiceSelections'])) {
-							$selection = $submittedOptions['choiceSelections'];
-							$optionConfig = orderItemOptions($item['name']);
+						} elseif ($optionConfig) {
+							$selection = is_array($submittedOptions['choiceSelections'] ?? null) ? $submittedOptions['choiceSelections'] : [];
 							if (!$optionConfig) { $errors[] = 'Options are not available for this item.'; break; }
 							foreach ($optionConfig as $group) {
 								$value = $selection[$group['key']] ?? '';
@@ -398,8 +423,8 @@ try {
 				 FROM menu_categories ORDER BY sort_order, category_id'
 		)->fetchAll();
 		$allItems = $pdo->query(
-				'SELECT item_id, category_id, name, description, price, image_url
-				 FROM menu_items WHERE is_available = 1 ORDER BY sort_order, item_id'
+			 'SELECT item_id, category_id, name, description, price, image_url, customizations_json
+				 FROM menu_items WHERE is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id'
 		)->fetchAll();
 		foreach ($allCategories as $category) {
 				if ($category['parent_id'] === null) {
@@ -413,9 +438,10 @@ try {
 				}
 		}
 		foreach ($allItems as $item) {
+				if (isOrderCustomizationItem($item)) continue;
 				$itemsByCategory[$item['category_id']][] = $item;
-				$optionGroups = [];
-				$customOptions = orderItemOptions($item['name']);
+				$customOptions = json_decode((string)($item['customizations_json'] ?? ''), true);
+				if (!is_array($customOptions)) $customOptions = orderItemOptions($item['name']);
 				$fanverse = null;
 				if (preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch)) {
 					$fanverse = [
@@ -431,37 +457,24 @@ try {
 						'drink' => 'Regular Pepsi (' . (int)$bundleMatch[1] . 'pcs)',
 					];
 				}
-				if (in_array($item['name'], ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
-						$optionGroups[] = [
-								'key' => 'glaze',
-								'label' => 'Choose a glaze',
-								'required' => true,
-								'choices' => ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'Golden Crunch', 'Snow Cheese'],
-						];
-				}
 				$menuData[] = [
 						'id' => (int)$item['item_id'],
 						'name' => $item['name'],
 						'priceCents' => $item['price'] !== null && (float)$item['price'] > 0 ? (int)round((float)$item['price'] * 100) : null,
 						'imageUrl' => $item['image_url'],
 						'description' => $item['description'],
-						'options' => $optionGroups,
+						'options' => [],
 						'customOptions' => $customOptions,
 						'fanverse' => $fanverse,
 				];
 		}
-		$hasPricedItems = static function (int $categoryId) use (&$itemsByCategory): bool {
-				foreach ($itemsByCategory[$categoryId] ?? [] as $item) {
-						if ($item['price'] !== null && (float)$item['price'] > 0) return true;
-				}
-				return false;
-		};
+		$hasOrderItems = static fn(int $categoryId): bool => !empty($itemsByCategory[$categoryId]);
 		foreach ($categories as $categoryId => $category) {
 				$children = array_values(array_filter(
 						$category['children'],
-						static fn(array $child): bool => $hasPricedItems((int)$child['category_id'])
+						static fn(array $child): bool => $hasOrderItems((int)$child['category_id'])
 				));
-				if (!$hasPricedItems((int)$categoryId) && !$children) {
+				if (!$hasOrderItems((int)$categoryId) && !$children) {
 						unset($categories[$categoryId]);
 				} else {
 						$categories[$categoryId]['children'] = $children;
@@ -507,6 +520,7 @@ require 'includes/header.php';
 	</div>
 	<section class="order-heading-band">
 		<div class="container py-4 py-lg-5">
+			<?php if (!empty($_SESSION['flash_success'])): ?><div class="alert alert-success"><?= e((string)$_SESSION['flash_success']) ?></div><?php unset($_SESSION['flash_success']); endif; ?>
 			<img class="" src="https://www.bonchon.com.ph/storage/cms_images/lj8oc25rqsJim7X4z8o1WH5ZEJpumFQTQ625BsRa" alt="BBQ Sizzlers Meal" >
 			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
 				<div>
@@ -550,6 +564,7 @@ require 'includes/header.php';
 							<div class="order-history-heading">
 								<div><strong><?= e($myOrder['order_number']) ?></strong><time datetime="<?= e(date(DATE_ATOM, strtotime($myOrder['created_at']))) ?>"><?= e(date('M j, Y · g:i A', strtotime($myOrder['created_at']))) ?></time></div>
 								<span class="order-history-status"><?= e(ucfirst($myOrder['status'])) ?></span>
+							<?php if (strtolower((string)$myOrder['status']) === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger" data-cancel-order="<?= (int)$myOrder['order_id'] ?>" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">Cancel order</button><?php endif; ?>
 							</div>
 							<p class="order-history-items mb-2"><?= e($itemSummary ?: 'No item details') ?></p>
 							<div class="order-history-meta">
@@ -603,7 +618,7 @@ require 'includes/header.php';
 
 				<section class="col-lg-6 order-catalog" aria-label="Menu items">
 					<?php foreach ($categories as $category): ?>
-						<?php $rootItems = array_values(array_filter($itemsByCategory[$category['category_id']] ?? [], static fn(array $item): bool => $item['price'] !== null && (float)$item['price'] > 0)); ?>
+						<?php $rootItems = $itemsByCategory[$category['category_id']] ?? []; ?>
 						<section class="order-menu-section" id="order-category-<?= (int)$category['category_id'] ?>">
 							<h2><?= e($category['name']) ?></h2>
 							<?php if ($category['description']): ?><p class="order-section-desc"><?= e($category['description']) ?></p><?php endif; ?>
@@ -636,7 +651,7 @@ require 'includes/header.php';
 								</div>
 							<?php endif; ?>
 								<?php foreach ($category['children'] as $child): ?>
-								<?php $childItems = array_values(array_filter($itemsByCategory[$child['category_id']] ?? [], static fn(array $item): bool => $item['price'] !== null && (float)$item['price'] > 0)); ?>
+								<?php $childItems = $itemsByCategory[$child['category_id']] ?? []; ?>
 								<section class="order-subsection" id="order-category-<?= (int)$child['category_id'] ?>">
 									<h3><?= e($child['name']) ?></h3>
 									<?php if ($child['description']): ?><p class="order-section-desc"><?= e($child['description']) ?></p><?php endif; ?>
@@ -747,6 +762,9 @@ require 'includes/header.php';
 		</div>
 	<?php endif; ?>
 </main>
+
+<div class="modal fade" id="cancelOrderModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><form method="post" action="cancel-order.php"><div class="modal-header"><h2 class="modal-title fs-5">Cancel this order?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body">This pending order will be cancelled. You cannot undo this action.<input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="order_id" id="cancel-order-id"></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep order</button><button class="btn btn-danger">Cancel order</button></div></form></div></div></div>
+<script>document.querySelectorAll('[data-cancel-order]').forEach(button=>button.addEventListener('click',()=>{document.getElementById('cancel-order-id').value=button.dataset.cancelOrder;}));</script>
 
 <button type="button" class="order-mobile-cart d-lg-none" id="mobile-cart-button" aria-label="View basket and checkout">
 	<span><i class="bi bi-bag me-2" aria-hidden="true"></i><span id="mobile-cart-count">0</span> items</span>

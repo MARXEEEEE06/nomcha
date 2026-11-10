@@ -1,6 +1,7 @@
 <?php
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
+require_customer($pdo);
 if (empty($_SESSION['user_id'])) { header('Location: login.php?redirect=' . rawurlencode('billing-address.php')); exit; }
 $userId = (int)$_SESSION['user_id'];
 $errors = [];

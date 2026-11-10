@@ -105,6 +105,7 @@ HTML;
     <div class="row g-4">
       <?php foreach ($items as $item): ?>
         <div class="col-12 col-sm-6 col-lg-3">
+          <a href="order.php#order-category-5" style="text-decoration: none;">
           <div class="card item-card h-100">
             <?php if (!empty($item['image_url'])): ?>
               <img src="<?= htmlspecialchars($item['image_url']) ?>" class="item-img" alt="<?= htmlspecialchars($item['name']) ?>">
@@ -119,6 +120,7 @@ HTML;
               <?php endif; ?>
             </div>
           </div>
+          </a>
         </div>
       <?php endforeach; ?>
     </div>

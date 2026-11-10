@@ -16,8 +16,16 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         throw new RuntimeException('Add the Make webhook URL in includes/local_config.php.');
     }
 
-    $subject = $purpose === 'registration' ? 'Verify your Nomcha account' : 'Your Nomcha password reset code';
-    $action = $purpose === 'registration' ? 'verify your email address' : 'reset your password';
+    $subject = match ($purpose) {
+        'registration' => 'Verify your Nomcha account',
+        'account_deletion' => 'Confirm your Nomcha account deletion',
+        default => 'Your Nomcha password reset code',
+    };
+    $action = match ($purpose) {
+        'registration' => 'verify your email address',
+        'account_deletion' => 'confirm your account deletion',
+        default => 'reset your password',
+    };
     $fromEmail = (string)($config['mail_from_email'] ?? 'no-reply@example.com');
     $fromName = (string)($config['mail_from_name'] ?? 'Nomcha');
     $text = "Your Nomcha verification code is {$otp}.\n\nUse this code to {$action}. It expires in 5 minutes. If you did not request it, you can ignore this email.";

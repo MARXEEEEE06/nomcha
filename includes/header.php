@@ -52,7 +52,14 @@ function navActive(string $file, string $current): string {
               <i class="bi bi-person-circle me-1"></i><?= htmlspecialchars($displayName) ?>
             </button>
             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-nomcha">
+              <?php if (($_SESSION['role'] ?? 'customer') === 'customer'): ?>
+              <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>My account</a></li>
+              <li><a class="dropdown-item" href="order.php?view=orders"><i class="bi bi-receipt me-2"></i>My orders</a></li>
               <li><a class="dropdown-item" href="billing-address.php"><i class="bi bi-geo-alt me-2"></i>Billing Address</a></li>
+              <?php elseif (in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true)): ?>
+              <li><a class="dropdown-item" href="menu-management.php"><i class="bi bi-card-list me-2"></i>Menu management</a></li>
+              <?php if (($_SESSION['role'] ?? '') === 'admin'): ?><li><a class="dropdown-item" href="employees.php"><i class="bi bi-people me-2"></i>Employees</a></li><?php endif; ?>
+              <?php endif; ?>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>
           </div>

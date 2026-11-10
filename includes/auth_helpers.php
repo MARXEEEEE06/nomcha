@@ -20,6 +20,43 @@ function csrf_check($t): bool {
     return !empty($_SESSION['csrf']) && is_string($t) && hash_equals($_SESSION['csrf'], $t);
 }
 
+/** Resolve permissions from the database on every protected request. */
+function current_role(PDO $pdo): ?string {
+    $userId = (int)($_SESSION['user_id'] ?? 0);
+    if ($userId < 1) return null;
+    $stmt = $pdo->prepare('SELECT role, is_active FROM user_credentials WHERE user_id = ?');
+    $stmt->execute([$userId]);
+    $account = $stmt->fetch();
+    $role = $account['role'] ?? null;
+    if (!in_array($role, ['customer', 'staff', 'admin'], true)) {
+        $_SESSION = [];
+        return null;
+    }
+    if (!(bool)$account['is_active']) {
+        $_SESSION = [];
+        header('Location: login.php?disabled=1');
+        exit;
+    }
+    $_SESSION['role'] = $role;
+    return $role;
+}
+
+function require_role(PDO $pdo, array $roles): void {
+    $role = current_role($pdo);
+    if ($role === null) {
+        header('Location: login.php');
+        exit;
+    }
+    if (!in_array($role, $roles, true)) {
+        http_response_code(403);
+        exit('You do not have permission to access this page.');
+    }
+}
+
+function require_customer(PDO $pdo): void { require_role($pdo, ['customer']); }
+function require_staff_or_admin(PDO $pdo): void { require_role($pdo, ['staff', 'admin']); }
+function require_admin(PDO $pdo): void { require_role($pdo, ['admin']); }
+
 function normalize_mobile(string $m): string {
     return str_starts_with($m, '+63') ? '0' . substr($m, 3) : $m;
 }

@@ -192,6 +192,8 @@ html { scroll-behavior: smooth; }
   background: var(--nc-tan); color: var(--nc-red); font-size: 3.5rem; border-radius: .5rem;
 }
 .menu-item-card { overflow: hidden; border: 1px solid rgba(74,52,40,.12); border-radius: .35rem; background: #fff; }
+.menu-item-card-link { color: inherit; text-decoration: none; transition: border-color .18s, box-shadow .18s, transform .18s; }
+.menu-item-card-link:hover, .menu-item-card-link:focus-visible { border-color: var(--nc-orange); box-shadow: 0 5px 18px rgba(36,34,31,.12); color: inherit; transform: translateY(-2px); outline: none; }
 .menu-item-img { height: 210px; padding: 1rem; transition: var(--nc-hover-transition);} /* background: #fff; } */
 .menu-item-img:hover { transition: var(--nc-hover-transition); transform: scale(var(--nc-hover-scale)); }
 .menu-item-name { text-transform: uppercase; color: var(--nc-ink); font-size: 1rem; }

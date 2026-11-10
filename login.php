@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors['form'] = 'Too many login attempts, please try again later.';
                 } else {
                     $stmt = $pdo->prepare(
-                        'SELECT c.user_id, c.password, i.first_name
+                        'SELECT c.user_id, c.password, c.role, c.is_active, i.first_name
                          FROM user_credentials c
                          JOIN user_info i ON i.user_id = c.user_id
                          WHERE c.email_addr = ? LIMIT 1'
@@ -61,12 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         && $email === 'admin@admin'
                         && hash_equals('admin', $password);
 
-                    if ($row && (password_verify($password, $hash) || $testAdminPassword)) {
+                    if ($row && (int)$row['is_active'] === 1 && (password_verify($password, $hash) || $testAdminPassword)) {
                         clear_login_failures($pdo, $email);
                         session_regenerate_id(true);
                         unset($_SESSION['csrf']);
                         $_SESSION['user_id']    = (int)$row['user_id'];
                         $_SESSION['first_name'] = $row['first_name'];
+                        $_SESSION['role']       = $row['role'];
                         header('Location: ' . $redirectTo);
                         exit;
                     }

@@ -15,7 +15,7 @@ try {
 
     $items = $pdo->query(
         'SELECT category_id, name, description, image_url
-         FROM menu_items WHERE is_available = 1 ORDER BY sort_order, item_id'
+         FROM menu_items WHERE is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id'
     )->fetchAll();
 
     foreach ($items as $it) {
@@ -39,16 +39,19 @@ function renderItems(array $items): void {
     if (!$items) return;
     echo '<div class="row row-cols-1 row-cols-md-2 g-4">';
     foreach ($items as $it) {
-        echo '<div class="col text-center">';
+        $categoryId = (int) $it['category_id'];
+        $itemName = htmlspecialchars($it['name'], ENT_QUOTES, 'UTF-8');
+        echo '<div class="col"><a class="menu-item-card menu-item-card-link d-block h-100 text-center" href="order.php#order-category-' . $categoryId . '">';
         if (!empty($it['image_url'])) {
-            echo '<img src="' . htmlspecialchars($it['image_url']) . '" class="menu-item-img mb-3" alt="' . htmlspecialchars($it['name']) . '">';
+            echo '<img src="' . htmlspecialchars($it['image_url'], ENT_QUOTES, 'UTF-8') . '" class="menu-item-img mb-3" alt="' . $itemName . '">';
         } else {
             echo '<div class="menu-item-placeholder mb-3"><i class="bi bi-egg-fried"></i></div>';
         }
-        echo '<h4 class="menu-item-name">' . htmlspecialchars($it['name']) . '</h4>';
+        echo '<h4 class="menu-item-name">' . $itemName . '</h4>';
         if (!empty($it['description'])) {
-            echo '<p class="small text-secondary">' . htmlspecialchars($it['description']) . '</p>';
+            echo '<p class="small text-secondary">' . htmlspecialchars($it['description'], ENT_QUOTES, 'UTF-8') . '</p>';
         }
+        echo '</a>';
         echo '</div>';
     }
     echo '</div>';
