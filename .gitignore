@@ -1,4 +1,6 @@
 assets/temp/
+assets/uploads/
+/uploads/
 *.sql
 *.png~
 *.jpg~

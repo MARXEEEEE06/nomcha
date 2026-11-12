@@ -1,6 +1,23 @@
 <?php
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
+require 'includes/make_mailer.php';
+
+// Returning to login ends any in-progress password-reset flow for this session.
+$resetChallengeId = (int)($_SESSION['reset_challenge_id'] ?? 0);
+if ($resetChallengeId > 0) {
+    $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ? AND purpose = ? AND consumed_at IS NULL')
+        ->execute([$resetChallengeId, 'password_reset']);
+}
+unset(
+    $_SESSION['reset_challenge_id'],
+    $_SESSION['reset_email'],
+    $_SESSION['reset_sent_at'],
+    $_SESSION['reset_verified_at'],
+    $_SESSION['reset_verified_user_id'],
+    $_SESSION['reset_change_password'],
+    $_SESSION['reset_notice']
+);
 
 $loginWelcome = !empty($_SESSION['user_id']) && ($_GET['auth_success'] ?? '') === '1';
 if (!empty($_SESSION['user_id']) && !$loginWelcome) { header('Location: index.php'); exit; }
