@@ -2,15 +2,14 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 
-require_customer($pdo);
-
-if (empty($_SESSION['user_id'])) {
+if (!empty($_SESSION['user_id'])) {
+	require_customer($pdo);
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$loginRedirect = 'order.php';
-	if (($_GET['fulfillment'] ?? '') === 'pickup') {
-		$pickupLocation = trim((string)($_GET['pickup_location'] ?? ''));
-		if (mb_strlen($pickupLocation) <= 255 && $pickupLocation !== '') {
-			$loginRedirect .= '?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
-		}
+	$fulfillment = (string)($_POST['fulfillment'] ?? $_GET['fulfillment'] ?? '');
+	$pickupLocation = trim((string)($_POST['pickup_location'] ?? $_GET['pickup_location'] ?? ''));
+	if ($fulfillment === 'pickup' && $pickupLocation !== '' && mb_strlen($pickupLocation) <= 255) {
+		$loginRedirect .= '?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
 	}
 	header('Location: login.php?redirect=' . rawurlencode($loginRedirect));
 	exit;
@@ -204,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$orderLines = [];
 		$subtotal = 0.0;
 		if (!$errors) {
-			$itemQuery = $pdo->prepare('SELECT item_id, name, price, customizations_json FROM menu_items WHERE item_id = ? AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))');
+			$itemQuery = $pdo->prepare("SELECT item_id, name, price, customizations_json FROM menu_items WHERE item_id = ? AND item_kind = 'item' AND availability_scope IN ('item_only','item_and_option') AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))");
 				foreach ($cart as $entry) {
 						$itemId = filter_var($entry['id'] ?? null, FILTER_VALIDATE_INT);
 						$quantity = filter_var($entry['quantity'] ?? null, FILTER_VALIDATE_INT);
@@ -423,8 +422,8 @@ try {
 				 FROM menu_categories ORDER BY sort_order, category_id'
 		)->fetchAll();
 		$allItems = $pdo->query(
-			 'SELECT item_id, category_id, name, description, price, image_url, customizations_json
-				 FROM menu_items WHERE is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id'
+				 "SELECT item_id, category_id, name, description, price, IF(image_data IS NOT NULL, CONCAT('menu-image.php?id=', item_id), image_url) AS image_url, customizations_json
+					 FROM menu_items WHERE item_kind = 'item' AND availability_scope IN ('item_only','item_and_option') AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id"
 		)->fetchAll();
 		foreach ($allCategories as $category) {
 				if ($category['parent_id'] === null) {
