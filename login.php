@@ -50,6 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!csrf_check($_POST['csrf'] ?? null)) {
         $errors['form'] = 'Session expired. Please try again.';
+    } elseif (($_POST['action'] ?? '') === 'send_sample') {
+        if (!valid_login_email($email) || strlen($email) > 255) {
+            $errors['email_addr'] = 'Enter a valid email address to receive the sample.';
+        } else {
+            try {
+                send_sample_email($email);
+                $success = 'Sample email sent. Check your inbox.';
+            } catch (Throwable $ex) {
+                $errors['form'] = 'Sample email could not be sent. Check the Make setup and try again.';
+            }
+        }
     } else {
         if (!valid_login_email($email) || strlen($email) > 255) {
             $errors['email_addr'] = 'Enter a valid email address.';
@@ -125,6 +136,7 @@ require 'includes/header.php';
         <div class="text-end mb-3"><a href="forgot-password.php" class="auth-link small">Forgot password?</a></div>
 
         <button type="submit" class="btn btn-auth w-100 py-2">Log in</button>
+        <button type="submit" name="action" value="send_sample" formnovalidate class="btn btn-outline-secondary w-100 py-2 mt-2">Send sample email</button>
       </form>
 
       <p class="text-center mt-4 mb-0">No account yet? <a href="register.php" class="auth-link">Register</a></p>

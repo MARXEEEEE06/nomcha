@@ -41,6 +41,8 @@ function navActive(string $file, string $current): string {
             <li class="nav-item"><a class="nav-link<?= navActive('staff-orders.php', $current) ?>" href="staff-orders.php">Incoming orders</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('employees.php', $current) ?>" href="employees.php">Employees</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('team-inbox.php', $current) ?>" href="team-inbox.php">Team inbox</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('promos.php', $current) ?>" href="promos.php">Promos</a></li>
             <?php else: ?>
             <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Management</a></li>
             <?php endif; ?>
@@ -48,10 +50,10 @@ function navActive(string $file, string $current): string {
             <li class="nav-item"><a class="nav-link<?= navActive('menu.php', $current) ?>" href="menu.php">Menu</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('our-story.php', $current) ?>" href="our-story.php">Our Story</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('branches.php', $current) ?>" href="branches.php">Branches</a></li>
-            <li class="nav-item"><a class="nav-link" href="#">Promos</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('promos.php', $current) ?>" href="promos.php">Promos</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Franchise</a></li>
-            <li class="nav-item"><a class="nav-link" href="#">Careers</a></li>
-            <li class="nav-item"><a class="nav-link" href="#">Contact Us</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('careers.php', $current) ?>" href="careers.php">Careers</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('contact.php', $current) ?>" href="contact.php">Contact Us</a></li>
             <?php endif; ?>
         </ul>
 
@@ -72,6 +74,7 @@ function navActive(string $file, string $current): string {
               <li><a class="dropdown-item" href="admin.php"><i class="bi bi-speedometer2 me-2"></i>Management</a></li>
               <li><a class="dropdown-item" href="staff-orders.php"><i class="bi bi-receipt me-2"></i>Incoming orders</a></li>
               <li><a class="dropdown-item" href="menu-management.php"><i class="bi bi-card-list me-2"></i>Menu management</a></li>
+              <li><a class="dropdown-item" href="team-inbox.php"><i class="bi bi-inbox me-2"></i>Team inbox</a></li>
               <?php endif; ?>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>

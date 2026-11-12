@@ -36,7 +36,7 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         . '</p><p>Use this code to ' . htmlspecialchars($action, ENT_QUOTES, 'UTF-8')
         . '. It expires in 5 minutes. If you did not request it, you can ignore this email.</p>';
 
-    $payload = json_encode([
+    $payloadData = [
         'to' => $to,
         'from_email' => $fromEmail,
         'from_name' => $fromName,
@@ -44,7 +44,9 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         'text' => $text,
         'html' => $html,
         'purpose' => $purpose,
-    ], JSON_UNESCAPED_SLASHES);
+        'route' => 'auth',
+    ];
+    $payload = json_encode($payloadData, JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the email payload.');
 
     $headers = "Content-Type: application/json\r\n";
@@ -72,6 +74,45 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
     return true;
 }
 
+function send_sample_email(string $to): bool {
+    $config = nomcha_config();
+    $webhook = trim((string)($config['make_webhook_url'] ?? ''));
+    if ($webhook === '' || !filter_var($webhook, FILTER_VALIDATE_URL)) {
+        throw new RuntimeException('Add the Make webhook URL in includes/local_config.php.');
+    }
+    $fromEmail = (string)($config['mail_from_email'] ?? 'no-reply@example.com');
+    $fromName = (string)($config['mail_from_name'] ?? 'Nomcha');
+    $text = "This is a sample email from Nomcha. Your Make email scenario is connected.";
+    $html = '<p>This is a sample email from Nomcha.</p><p>Your Make email scenario is connected.</p>';
+    $payload = json_encode([
+        'to' => $to,
+        'from_email' => $fromEmail,
+        'from_name' => $fromName,
+        'subject' => 'Nomcha sample email',
+        'text' => $text,
+        'html' => $html,
+        'purpose' => 'sample',
+        'route' => 'auth',
+    ], JSON_UNESCAPED_SLASHES);
+    if ($payload === false) throw new RuntimeException('Could not prepare the sample email payload.');
+    $headers = "Content-Type: application/json\r\n";
+    $token = trim((string)($config['make_webhook_token'] ?? ''));
+    if ($token !== '') $headers .= 'x-make-apikey: ' . $token . "\r\n";
+    $context = stream_context_create(['http' => [
+        'method' => 'POST', 'header' => $headers, 'content' => $payload,
+        'timeout' => 10, 'ignore_errors' => true,
+    ]]);
+    $response = @file_get_contents($webhook, false, $context);
+    $statusLine = $http_response_header[0] ?? '';
+    if ($response === false || !preg_match('/\s2\d\d\s/', $statusLine)) {
+        preg_match('/\s(\d{3})\s/', $statusLine, $matches);
+        throw new RuntimeException($response === false && !$statusLine
+            ? 'No HTTP response from Make. Check outbound HTTPS access and the webhook URL.'
+            : 'Make returned HTTP ' . ($matches[1] ?? 'error') . '. Check the webhook setup.');
+    }
+    return true;
+}
+
 function send_employee_welcome_email(string $to, string $employeeName, string $temporaryPassword): bool {
     $config = nomcha_config();
     $webhook = trim((string)($config['make_webhook_url'] ?? ''));
@@ -80,9 +121,9 @@ function send_employee_welcome_email(string $to, string $employeeName, string $t
     $fromName = (string)($config['mail_from_name'] ?? 'Nomcha');
     $safeName = htmlspecialchars($employeeName, ENT_QUOTES, 'UTF-8');
     $safePassword = htmlspecialchars($temporaryPassword, ENT_QUOTES, 'UTF-8');
-    $subject = 'Your Nomcha employee temporary password';
-    $text = "Hello {$employeeName},\n\nA temporary password has been set for your Nomcha employee account.\nTemporary password: {$temporaryPassword}\n\nLog in using this password, then use Forgot password to choose a new one. Keep this email private.";
-    $html = '<p>Hello ' . $safeName . ',</p><p>A temporary password has been set for your Nomcha employee account.</p><p>Temporary password: <strong>' . $safePassword . '</strong></p><p>Log in using this password, then use Forgot password to choose a new one. Keep this email private.</p>';
+    $subject = 'Your Nomcha employee account';
+    $text = "Hello {$employeeName},\n\nYour Nomcha employee account is ready.\nTemporary password: {$temporaryPassword}\n\nLog in using this password, then use Forgot password to choose a new one. Keep this email private.";
+    $html = '<p>Hello ' . $safeName . ',</p><p>Your Nomcha employee account is ready.</p><p>Temporary password: <strong>' . $safePassword . '</strong></p><p>Log in using this password, then use Forgot password to choose a new one. Keep this email private.</p>';
     $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'employee_welcome'], JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the email payload.');
     $headers = "Content-Type: application/json\r\n";

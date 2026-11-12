@@ -9,7 +9,7 @@
       <div class="col-lg-6"><div class="row footer-links">
         <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="menu.php">Menu</a></li><li class="mb-3"><a href="branches.php">Branches</a></li><li><a href="#">Franchise</a></li></ul>
         <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="order.php">Order Now</a></li><li class="mb-3"><a href="our-story.php">Our Story</a></li><li><a href="#">Promos</a></li></ul>
-        <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="#">Careers</a></li><li class="mb-3"><a href="#">Terms of Use</a></li><li><a href="#">Legal</a></li></ul>
+        <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="careers.php">Careers</a></li><li class="mb-3"><a href="contact.php">Contact Us</a></li><li><a href="promos.php">Promos</a></li></ul>
       </div></div>
     </div>
   </div>
