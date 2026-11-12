@@ -80,7 +80,7 @@
     if (!branchId.value || !selectedAddress()) {
       event.preventDefault();
       const message = !selectedAddress() ? 'Choose a saved billing address.' : 'Choose a Nomcha branch.';
-      const toast = document.createElement('div'); toast.className = 'order-toast order-toast-warning'; toast.setAttribute('role', 'status'); toast.textContent = message;
+      const toast = document.createElement('div'); toast.className = 'order-toast order-toast-warning'; toast.style.setProperty('--toast-life', '4s'); toast.setAttribute('role', 'status'); toast.textContent = message;
       document.getElementById('order-toast-container')?.append(toast); window.setTimeout(() => toast.remove(), 4000);
     }
   });

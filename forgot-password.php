@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $challengeId = create_otp_challenge($pdo, $email, 'password_reset', $foundUser ? (int)$foundUser : null);
                     $_SESSION['reset_challenge_id'] = $challengeId;
                     $_SESSION['reset_email'] = $email;
+                    $_SESSION['reset_sent_at'] = time();
                     unset($_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
                     $stage = 'verify';
                     $_SESSION['reset_notice'] = 'If this address can receive mail, a six-digit code has been sent. It expires in five minutes.';
@@ -51,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$oldId, $email, 'password_reset']);
                 $foundUser = $stmt->fetchColumn();
                 $_SESSION['reset_challenge_id'] = create_otp_challenge($pdo, $email, 'password_reset', $foundUser ? (int)$foundUser : null);
+                $_SESSION['reset_sent_at'] = time();
                 unset($_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id']);
                 $stage = 'verify';
                 $_SESSION['reset_notice'] = 'If this address can receive mail, a new six-digit code has been sent.';
@@ -104,15 +106,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare('UPDATE user_credentials SET password = ? WHERE user_id = ?')
                     ->execute([password_hash($password, PASSWORD_DEFAULT), (int)$_SESSION['reset_verified_user_id']]);
-                auth_security_log($pdo, 'password_reset', (string)$_SESSION['reset_email'], 'password_reset', 'password_changed');
-                unset($_SESSION['reset_challenge_id'], $_SESSION['reset_email'], $_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
+                auth_security_log($pdo, 'password_reset', (int)$_SESSION['reset_verified_user_id'], 'password_reset', 'password_changed');
+                unset($_SESSION['reset_challenge_id'], $_SESSION['reset_email'], $_SESSION['reset_sent_at'], $_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
                 $_SESSION['flash_success'] = 'Password updated. You can now log in.';
                 header('Location: login.php');
                 exit;
             }
         } elseif ($step === 'keep_password' && $stage === 'choice') {
-            auth_security_log($pdo, 'password_reset', (string)($_SESSION['reset_email'] ?? ''), 'password_reset', 'kept_existing_password');
-            unset($_SESSION['reset_challenge_id'], $_SESSION['reset_email'], $_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
+            auth_security_log($pdo, 'password_reset', (int)($_SESSION['reset_verified_user_id'] ?? 0) ?: null, 'password_reset', 'kept_existing_password');
+            unset($_SESSION['reset_challenge_id'], $_SESSION['reset_email'], $_SESSION['reset_sent_at'], $_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
             $_SESSION['flash_success'] = 'Your password was not changed. Log in with your existing password.';
             header('Location: login.php');
             exit;
@@ -125,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Forgot Password';
-$pageScripts = '<script src="assets/js/auth.js"></script>';
+$pageScripts = '<script src="assets/js/auth.js"></script><script src="assets/js/otp-countdown.js"></script>';
 require 'includes/header.php';
 ?>
 
@@ -153,14 +155,11 @@ require 'includes/header.php';
       <?php elseif ($stage === 'verify'): ?>
         <form method="post" action="forgot-password.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="step" value="verify">
           <?php form_field('otp', 'Six-digit code', 'text', '', $errors['otp'] ?? null, 'required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"'); ?>
-          <button type="submit" class="btn btn-auth w-100 py-2">Verify code</button>
+          <p class="small text-secondary mb-2" data-otp-countdown data-remaining="<?= max(0, 300 - (time() - (int)($_SESSION['reset_sent_at'] ?? time()))) ?>" data-resend-target="#resend-password-code" aria-live="polite"></p>
+          <button id="resend-password-code" type="submit" name="step" value="resend" class="btn btn-link auth-link px-0" disabled>Resend code</button>
+          <button type="submit" name="step" value="verify" class="btn btn-auth w-100 py-2">Verify code</button>
         </form>
-        <form method="post" action="forgot-password.php" class="mt-3">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="step" value="resend">
-          <button type="submit" class="btn btn-link auth-link w-100">Request another code</button>
         </form>
       <?php elseif ($stage === 'choice'): ?>
         <form method="post" action="forgot-password.php" class="mb-3">

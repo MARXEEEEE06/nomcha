@@ -4,6 +4,8 @@ require 'includes/db.php';
 require 'includes/otp_helpers.php';
 
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
+$registrationSuccess = !empty($_SESSION['registration_success_pending']) && ($_GET['account_created'] ?? '') === '1';
+if ($registrationSuccess) unset($_SESSION['registration_success_pending']);
 
 $errors = [];
 $notice = $_SESSION['registration_notice'] ?? null;
@@ -21,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ? AND purpose = ? AND consumed_at IS NULL')
                 ->execute([$oldId, 'registration']);
         }
-        unset($_SESSION['registration_challenge_id'], $_SESSION['registration_email'], $_SESSION['registration_notice']);
+        unset($_SESSION['registration_challenge_id'], $_SESSION['registration_email'], $_SESSION['registration_notice'], $_SESSION['registration_sent_at']);
         header('Location: register.php');
         exit;
     } elseif (($_POST['step'] ?? '') === 'resend') {
@@ -33,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data = json_decode((string)$stmt->fetchColumn(), true);
             if (!is_array($data)) throw new RuntimeException('Registration has expired. Please start again.');
             $_SESSION['registration_challenge_id'] = create_otp_challenge($pdo, $email, 'registration', null, $data);
+            $_SESSION['registration_sent_at'] = time();
             $_SESSION['registration_notice'] = 'A new verification code was requested. Check your email.';
             header('Location: register.php');
             exit;
@@ -66,10 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['province'], $data['municipality'], $data['barangay'], $data['zip_code'], $data['latitude'], $data['longitude']]);
                     $pdo->commit();
                     $pdo->prepare('UPDATE auth_otp_challenges SET registration_data = NULL WHERE challenge_id = ?')->execute([$challengeId]);
-                    auth_security_log($pdo, 'registration', $email, 'registration', 'completed');
-                    unset($_SESSION['registration_challenge_id'], $_SESSION['registration_email']);
-                    $_SESSION['flash_success'] = 'Email verified and account created. Please log in.';
-                    header('Location: login.php');
+                    auth_security_log($pdo, 'registration', $userId, 'registration', 'completed');
+                    unset($_SESSION['registration_challenge_id'], $_SESSION['registration_email'], $_SESSION['registration_sent_at']);
+                    $_SESSION['registration_success_pending'] = true;
+                    header('Location: register.php?account_created=1');
                     exit;
                 }
             } catch (PDOException $ex) {
@@ -116,9 +119,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $challengeId = create_otp_challenge($pdo, $old['email_addr'], 'registration', null, $data);
                     $_SESSION['registration_challenge_id'] = $challengeId;
                     $_SESSION['registration_email'] = $old['email_addr'];
+                    $_SESSION['registration_sent_at'] = time();
                     $verifying = true;
                     $_SESSION['registration_notice'] = 'We sent a six-digit verification code to your email. It expires in five minutes.';
-                    auth_security_log($pdo, 'registration', $old['email_addr'], 'registration', 'verification_started');
+                    auth_security_log($pdo, 'registration', null, 'registration', 'verification_started');
                     header('Location: register.php');
                     exit;
                 }
@@ -133,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pageTitle = 'Register';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
-$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/address-map.js"></script>';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/address-map.js"></script><script src="assets/js/otp-countdown.js"></script>';
 require 'includes/header.php';
 ?>
 
@@ -149,14 +153,10 @@ require 'includes/header.php';
       <?php if ($verifying): ?>
         <form method="post" action="register.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="step" value="verify">
           <?php form_field('otp', 'Six-digit code', 'text', '', $errors['otp'] ?? null, 'required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"'); ?>
-          <button type="submit" class="btn btn-auth w-100 py-2">Verify email and create account</button>
-        </form>
-        <form method="post" action="register.php" class="mt-3">
-          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
-          <input type="hidden" name="step" value="resend">
-          <button type="submit" class="btn btn-link auth-link w-100">Request another code</button>
+          <p class="small text-secondary mb-2" data-otp-countdown data-remaining="<?= max(0, 300 - (time() - (int)($_SESSION['registration_sent_at'] ?? time()))) ?>" data-resend-target="#resend-registration-code" aria-live="polite"></p>
+          <button id="resend-registration-code" type="submit" name="step" value="resend" class="btn btn-link auth-link px-0" disabled>Resend code</button>
+          <button type="submit" name="step" value="verify" class="btn btn-auth w-100 py-2">Verify email and create account</button>
         </form>
         <form method="post" action="register.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
@@ -199,4 +199,8 @@ require 'includes/header.php';
   </div>
 </main>
 
+<?php if ($registrationSuccess): ?>
+<div class="modal fade" id="registrationSuccessModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5">Account created</h2></div><div class="modal-body">Your email is verified and your account is ready. Continue to log in.</div><div class="modal-footer"><a class="btn btn-auth" href="login.php">Continue to login</a></div></div></div></div>
+<script>document.addEventListener('DOMContentLoaded',()=>new bootstrap.Modal('#registrationSuccessModal',{backdrop:'static',keyboard:false}).show());</script>
+<?php endif; ?>
 <?php require 'includes/footer.php'; ?>

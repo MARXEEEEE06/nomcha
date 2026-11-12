@@ -14,8 +14,8 @@ try {
     )->fetchAll();
 
     $items = $pdo->query(
-        'SELECT category_id, name, description, image_url
-         FROM menu_items WHERE is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id'
+        "SELECT category_id, name, description, IF(image_data IS NOT NULL, CONCAT('menu-image.php?id=', item_id), image_url) AS image_url
+         FROM menu_items WHERE item_kind = 'item' AND availability_scope IN ('item_only','item_and_option') AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id"
     )->fetchAll();
 
     foreach ($items as $it) {

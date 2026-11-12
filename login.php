@@ -2,11 +2,8 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 
-$localConfigPath = __DIR__ . '/includes/local_config.php';
-$localConfig = is_file($localConfigPath) ? require $localConfigPath : [];
-$allowTestAdminLogin = is_array($localConfig) && ($localConfig['allow_test_admin_login'] ?? false) === true;
-
-if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
+$loginWelcome = !empty($_SESSION['user_id']) && ($_GET['auth_success'] ?? '') === '1';
+if (!empty($_SESSION['user_id']) && !$loginWelcome) { header('Location: index.php'); exit; }
 
 $redirectCandidate = (string)($_POST['redirect'] ?? $_GET['redirect'] ?? '');
 $redirectTo = $redirectCandidate === 'order.php' ? 'order.php' : 'index.php';
@@ -27,6 +24,8 @@ $email   = '';
 $password = '';
 $success = $_SESSION['flash_success'] ?? null;
 unset($_SESSION['flash_success']);
+$loginDestination = $loginWelcome ? (string)($_SESSION['login_destination'] ?? 'index.php') : '';
+if ($loginWelcome) unset($_SESSION['login_destination']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = strtolower(trim($_POST['email_addr'] ?? ''));
@@ -57,18 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $row  = $stmt->fetch();
                     $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
 
-                    $testAdminPassword = $allowTestAdminLogin
-                        && $email === 'admin@admin'
-                        && hash_equals('admin', $password);
-
-                    if ($row && (int)$row['is_active'] === 1 && (password_verify($password, $hash) || $testAdminPassword)) {
+                    if ($row && (int)$row['is_active'] === 1 && account_password_matches($email, $hash, $password)) {
                         clear_login_failures($pdo, $email);
                         session_regenerate_id(true);
                         unset($_SESSION['csrf']);
                         $_SESSION['user_id']    = (int)$row['user_id'];
                         $_SESSION['first_name'] = $row['first_name'];
                         $_SESSION['role']       = $row['role'];
-                        header('Location: ' . $redirectTo);
+                        $_SESSION['login_destination'] = $redirectTo;
+                        header('Location: login.php?auth_success=1');
                         exit;
                     }
 
@@ -119,4 +115,8 @@ require 'includes/header.php';
   </div>
 </main>
 
+<?php if ($loginWelcome): ?>
+<div class="modal fade" id="loginSuccessModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title fs-5">Login successful</h2></div><div class="modal-body">Welcome back, <?=e((string)($_SESSION['first_name']??'customer'))?>.</div><div class="modal-footer"><a class="btn btn-auth" href="<?=e($loginDestination ?: 'index.php')?>">Continue</a></div></div></div></div>
+<script>document.addEventListener('DOMContentLoaded',()=>new bootstrap.Modal('#loginSuccessModal',{backdrop:'static',keyboard:false}).show());</script>
+<?php endif; ?>
 <?php require 'includes/footer.php'; ?>

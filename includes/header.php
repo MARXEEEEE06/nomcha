@@ -5,6 +5,7 @@ $pageTitle   = $pageTitle ?? 'Nomcha';
 $current     = basename($_SERVER['PHP_SELF']);
 $isLoggedIn  = !empty($_SESSION['user_id']);
 $displayName = $_SESSION['first_name'] ?? '';
+$isManagementRole = in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true);
 
 function navActive(string $file, string $current): string {
     return $file === $current ? ' active' : '';
@@ -34,6 +35,16 @@ function navActive(string $file, string $current): string {
 
     <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav me-auto mb-2 mb-xl-0">
+            <?php if ($isManagementRole): ?>
+            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+            <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Management</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('staff-orders.php', $current) ?>" href="staff-orders.php">Incoming orders</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('employees.php', $current) ?>" href="employees.php">Employees</a></li>
+            <?php else: ?>
+            <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Management</a></li>
+            <?php endif; ?>
+            <?php else: ?>
             <li class="nav-item"><a class="nav-link<?= navActive('menu.php', $current) ?>" href="menu.php">Menu</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('our-story.php', $current) ?>" href="our-story.php">Our Story</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('branches.php', $current) ?>" href="branches.php">Branches</a></li>
@@ -41,10 +52,11 @@ function navActive(string $file, string $current): string {
             <li class="nav-item"><a class="nav-link" href="#">Franchise</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Careers</a></li>
             <li class="nav-item"><a class="nav-link" href="#">Contact Us</a></li>
+            <?php endif; ?>
         </ul>
 
       <div class="d-flex align-items-center gap-2">
-        <a href="order.php" class="btn btn-order">Order</a>
+        <?php if (!$isManagementRole): ?><a href="order.php" class="btn btn-order">Order</a><?php endif; ?>
 
         <?php if ($isLoggedIn): ?>
           <div class="dropdown">
@@ -56,9 +68,10 @@ function navActive(string $file, string $current): string {
               <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>My account</a></li>
               <li><a class="dropdown-item" href="order.php?view=orders"><i class="bi bi-receipt me-2"></i>My orders</a></li>
               <li><a class="dropdown-item" href="billing-address.php"><i class="bi bi-geo-alt me-2"></i>Billing Address</a></li>
-              <?php elseif (in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true)): ?>
+              <?php elseif (($_SESSION['role'] ?? '') === 'staff'): ?>
+              <li><a class="dropdown-item" href="admin.php"><i class="bi bi-speedometer2 me-2"></i>Management</a></li>
+              <li><a class="dropdown-item" href="staff-orders.php"><i class="bi bi-receipt me-2"></i>Incoming orders</a></li>
               <li><a class="dropdown-item" href="menu-management.php"><i class="bi bi-card-list me-2"></i>Menu management</a></li>
-              <?php if (($_SESSION['role'] ?? '') === 'admin'): ?><li><a class="dropdown-item" href="employees.php"><i class="bi bi-people me-2"></i>Employees</a></li><?php endif; ?>
               <?php endif; ?>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>

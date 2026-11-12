@@ -56,6 +56,7 @@
     if (!toastContainer) return;
     const toast = document.createElement('div');
     toast.className = `order-toast order-toast-${tone}`;
+    toast.style.setProperty('--toast-life', '7s');
     toast.setAttribute('role', tone === 'danger' ? 'alert' : 'status');
     toast.innerHTML = `<i class="bi ${tone === 'success' ? 'bi-check-circle-fill' : tone === 'warning' ? 'bi-exclamation-triangle-fill' : 'bi-exclamation-circle-fill'}" aria-hidden="true"></i><div>${escapeHtml(message)}</div><button type="button" class="order-toast-close" aria-label="Dismiss">&times;</button>`;
     toastContainer.append(toast);
