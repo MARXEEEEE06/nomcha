@@ -49,6 +49,16 @@
  */
 }
 
+/* Public forms and team inbox */
+.form-panel { background: #fff; border: 1px solid rgba(24,4,4,.09); border-radius: 1rem; box-shadow: 0 12px 36px rgba(24,4,4,.06); padding: clamp(1.25rem, 3vw, 2.25rem); }
+.form-panel h1, .form-panel h2 { color: var(--nc-red); }
+.form-panel .form-control, .form-panel .form-select { border-radius: .65rem; padding: .75rem .9rem; }
+.form-panel .form-control:focus, .form-panel .form-select:focus { border-color: var(--nc-tan); box-shadow: 0 0 0 .2rem rgba(220,144,30,.18); }
+.promo-code { display: inline-block; border: 1px dashed var(--nc-red); border-radius: .5rem; color: var(--nc-red); padding: .45rem .8rem; letter-spacing: .04em; }
+.inbox-list .list-group-item { padding: 1.1rem 1.25rem; border-color: rgba(24,4,4,.08); }
+.inbox-dot { width: .6rem; height: .6rem; margin-top: .2rem; border-radius: 50%; background: var(--nc-red); display: inline-block; }
+.inbox-dot.read { background: #c9c3be; }
+
 body {
   font-family: 'Poppins', sans-serif;
   background: var(--nc-cream);
