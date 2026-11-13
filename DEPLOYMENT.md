@@ -6,11 +6,11 @@ Copy `.env.example` to `.env` and set local database values. `127.0.0.1` works f
 
 ## Aiven MySQL
 
-Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` from the Aiven service connection details. Download Aiven's CA certificate and set `DB_SSL_CA` to its path. Keep the `.env` file and certificate private; do not commit either.
+Set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` from the Aiven service connection details. Set `DB_SSL_CA` to the path of Aiven's CA certificate. Keep the `.env` file and certificate private; do not commit either. The app also accepts the CA certificate PEM contents directly in `DB_SSL_CA` and writes them to a temporary file for PDO.
 
 ## Aiven application deployment
 
-The repository includes a `Dockerfile` for the PHP application. In Aiven, select the repository and branch containing this file and deploy it as a container. The image runs Apache on port `8080` and includes PHP 8.2 with `pdo_mysql` enabled. Configure the application port as HTTP `8080`, and set the database and application environment variables in the deployment settings; do not add credentials to the Dockerfile. Set `DB_SSL_CA` to the path of the Aiven CA certificate available inside the container. The certificate is excluded from the Docker build context, so provide it through the platform's supported secret or file mount mechanism.
+The repository includes a `Dockerfile` for the PHP application. In Aiven, select the repository and branch containing this file and deploy it as a container. The image runs Apache on port `8080` and includes PHP 8.2 with `pdo_mysql` enabled. Configure the application port as HTTP `8080`, and set the database and application environment variables in the deployment settings; do not add credentials to the Dockerfile. Set `DB_SSL_CA` to the Aiven CA certificate PEM contents, or to the certificate's path inside the container. The certificate is excluded from the Docker build context.
 
 The app writes career resumes under `uploads/resumes`. Container filesystems may be replaced during redeploys, so attach persistent storage at `/var/www/html/uploads` if uploaded resumes must survive deployments. Menu images stored in the database do not need this volume.
 

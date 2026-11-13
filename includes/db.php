@@ -8,6 +8,32 @@ $user = nomcha_env('DB_USER', 'root');
 $pass = nomcha_env('DB_PASSWORD', '');
 $sslCa = trim(nomcha_env('DB_SSL_CA', ''));
 
+// PDO expects a certificate file path. Allow deployment platforms to provide
+// the Aiven CA certificate itself as an environment variable instead.
+if (str_contains($sslCa, '-----BEGIN CERTIFICATE-----')) {
+    $sslCa = str_replace('\\n', "\n", $sslCa);
+    $caPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+        . DIRECTORY_SEPARATOR . 'nomcha-aiven-ca-' . hash('sha256', $sslCa) . '.pem';
+    if (!is_file($caPath)) {
+        $tempPath = tempnam(sys_get_temp_dir(), 'nomcha-ca-');
+        if ($tempPath === false || file_put_contents($tempPath, $sslCa, LOCK_EX) === false) {
+            http_response_code(500);
+            error_log('Nomcha DB connection failed: unable to prepare the configured CA certificate.');
+            exit('Database connection failed.');
+        }
+        @chmod($tempPath, 0600);
+        if (!@rename($tempPath, $caPath)) {
+            @unlink($tempPath);
+            if (!is_file($caPath)) {
+                http_response_code(500);
+                error_log('Nomcha DB connection failed: unable to install the configured CA certificate.');
+                exit('Database connection failed.');
+            }
+        }
+    }
+    $sslCa = $caPath;
+}
+
 $dsn = "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4";
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -31,5 +57,6 @@ try {
     );
 } catch (PDOException $e) {
     http_response_code(500);
+    error_log('Nomcha DB connection failed: ' . $e->getMessage());
     exit('Database connection failed.');
 }
