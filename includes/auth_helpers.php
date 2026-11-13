@@ -68,7 +68,7 @@ function account_password_matches(string $email, string $passwordHash, string $p
     $config = is_file($configFile) ? require $configFile : [];
     return is_array($config)
         && ($config['allow_test_admin_login'] ?? false) === true
-        && strtolower($email) === 'nomchaadmin@admin'
+        && in_array(strtolower($email), ['admin@admin', 'nomchaadmin@admin'], true)
         && hash_equals('@NomchaAdmin2026', $password);
 }
 
@@ -84,7 +84,7 @@ function normalize_mobile(string $m): string {
 }
 
 function valid_login_email(string $email): bool {
-    return $email === 'nomchaadmin@admin' || (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
+    return in_array($email, ['admin@admin', 'nomchaadmin@admin'], true) || (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
 }
 
 function login_is_locked(PDO $pdo, string $email): bool {
