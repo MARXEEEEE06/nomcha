@@ -12,6 +12,7 @@
     action.value = 'add';
     document.querySelector('#new-address h2').textContent = 'Add a billing address';
     form.querySelectorAll('input:not([type="hidden"])').forEach(input => { input.value = ''; });
+    window.PsgcSelect?.reset(form);
     bootstrap.Collapse.getOrCreateInstance(document.getElementById('new-address'), { toggle: false }).show();
     document.getElementById('new-address-button')?.setAttribute('aria-expanded', 'true');
     window.setTimeout(() => document.getElementById('address-map')?.dispatchEvent(new Event('addressform:shown')), 0);

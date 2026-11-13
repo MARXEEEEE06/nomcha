@@ -2,6 +2,7 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 require 'includes/otp_helpers.php';
+require 'includes/psgc_helpers.php';
 
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
 $registrationSuccess = !empty($_SESSION['registration_success_pending']) && ($_GET['account_created'] ?? '') === '1';
@@ -10,7 +11,7 @@ if ($registrationSuccess) unset($_SESSION['registration_success_pending']);
 $errors = [];
 $notice = $_SESSION['registration_notice'] ?? null;
 unset($_SESSION['registration_notice']);
-$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'province' => '', 'municipality' => '', 'barangay' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
+$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'region_code' => '', 'municipality_code' => '', 'barangay_code' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
 $password = $confirm = '';
 $verifying = !empty($_SESSION['registration_challenge_id']);
 
@@ -65,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $userId = (int)$pdo->lastInsertId();
                     $pdo->prepare('INSERT INTO user_credentials (user_id, email_addr, password) VALUES (?, ?, ?)')
                         ->execute([$userId, $email, $data['password_hash']]);
-                    $pdo->prepare('INSERT INTO user_addresses (user_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
-                        ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['province'], $data['municipality'], $data['barangay'], $data['zip_code'], $data['latitude'], $data['longitude']]);
+                    $pdo->prepare('INSERT INTO user_addresses (user_id, recipient_name, mobile_no, street_address, region_code, province, province_code, municipality, municipality_code, barangay, barangay_code, zip_code, latitude, longitude, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+                        ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['region_code'] ?? null, $data['province'], $data['province_code'] ?? null, $data['municipality'], $data['municipality_code'] ?? null, $data['barangay'], $data['barangay_code'] ?? null, $data['zip_code'], $data['latitude'], $data['longitude']]);
                     $pdo->commit();
                     $pdo->prepare('UPDATE auth_otp_challenges SET registration_data = NULL WHERE challenge_id = ?')->execute([$challengeId]);
                     auth_security_log($pdo, 'registration', $userId, 'registration', 'completed');
@@ -92,6 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = validate_registration($old, $password, $confirm);
         if (!$errors) {
             try {
+                $place = psgc_resolve($pdo, $old['region_code'], $old['municipality_code'], $old['barangay_code']);
+                if (!$place) $errors['barangay_code'] = 'Select a valid region, city / municipality and barangay.';
                 $s = $pdo->prepare('SELECT 1 FROM user_credentials WHERE email_addr = ?');
                 $s->execute([$old['email_addr']]);
                 if ($s->fetchColumn()) $errors['email_addr'] = 'This email is already registered.';
@@ -107,9 +110,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'last_name' => $old['last_name'],
                         'recipient_name' => $old['recipient_name'],
                         'street_address' => $old['street_address'],
-                        'province' => $old['province'],
-                        'municipality' => $old['municipality'],
-                        'barangay' => $old['barangay'],
+                        'region_code' => $place['region_code'],
+                        'province' => $place['province'],
+                        'province_code' => $place['province_code'],
+                        'municipality' => $place['municipality'],
+                        'municipality_code' => $place['municipality_code'],
+                        'barangay' => $place['barangay'],
+                        'barangay_code' => $place['barangay_code'],
                         'zip_code' => $old['zip_code'],
                         'latitude' => $old['latitude'],
                         'longitude' => $old['longitude'],
@@ -137,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pageTitle = 'Register';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
-$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/address-map.js"></script><script src="assets/js/otp-countdown.js"></script>';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/psgc-select.js"></script><script src="assets/js/address-map.js"></script><script src="assets/js/otp-countdown.js"></script>';
 require 'includes/header.php';
 ?>
 
@@ -187,7 +194,8 @@ require 'includes/header.php';
           <fieldset class="mb-4"><legend class="h5">Billing address <small class="text-secondary">(default)</small></legend>
             <?php form_field('recipient_name', 'Recipient name', 'text', $old['recipient_name'], $errors['recipient_name'] ?? null, 'required maxlength="120" autocomplete="name" placeholder="e.g. Juan Dela Cruz"'); ?>
             <?php form_field('street_address', 'Address', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required maxlength="255" autocomplete="address-line1" placeholder="e.g. 123 Street, Camella Subdiv., 2nd Floor ABC Bldg."'); ?>
-            <div class="row"><div class="col-md-3"><?php form_field('province', 'City / Province', 'text', $old['province'], $errors['province'] ?? null, 'required maxlength="120" placeholder="e.g. Metro Manila"'); ?></div><div class="col-md-3"><?php form_field('municipality', 'Municipality', 'text', $old['municipality'], $errors['municipality'] ?? null, 'required maxlength="120" placeholder="e.g. Quezon City"'); ?></div><div class="col-md-3"><?php form_field('barangay', 'Barangay', 'text', $old['barangay'], $errors['barangay'] ?? null, 'required maxlength="120" placeholder="e.g. Bago Bantay"'); ?></div><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
+            <?php $psgc = psgc_form_state($pdo, $old); ?>
+            <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
             <label class="form-label" for="address-map">Map pin location</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div>
             <div class="row mt-2"><div class="col-sm-6"><?php form_field('latitude', 'Latitude', 'number', $old['latitude'], $errors['latitude'] ?? null, 'required step="any" min="-90" max="90"'); ?></div><div class="col-sm-6"><?php form_field('longitude', 'Longitude', 'number', $old['longitude'], $errors['longitude'] ?? null, 'required step="any" min="-180" max="180"'); ?></div></div>
           </fieldset>

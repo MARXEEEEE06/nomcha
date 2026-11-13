@@ -138,11 +138,14 @@ function validate_registration(array $d, string $password, string $confirm): arr
     if ($d['middle_name'] !== '' && !preg_match(NAME_RE, $d['middle_name'])) $err['middle_name'] = 'Enter a valid middle name or leave it blank.';
     if (!preg_match(NAME_RE, $d['last_name'])) $err['last_name'] = 'Enter a valid last name.';
 
-    foreach (['recipient_name', 'street_address', 'province', 'municipality', 'barangay'] as $field) {
+    foreach (['recipient_name', 'street_address'] as $field) {
         $max = $field === 'street_address' ? 255 : 120;
         if (mb_strlen($d[$field] ?? '') < 2 || mb_strlen($d[$field] ?? '') > $max) $err[$field] = 'Please enter a valid value.';
     }
     if (!preg_match('/^\d{4}$/', $d['zip_code'] ?? '')) $err['zip_code'] = 'Enter a 4-digit ZIP code.';
+    foreach (['region_code' => 'a region', 'municipality_code' => 'a city / municipality', 'barangay_code' => 'a barangay'] as $field => $what) {
+        if (!preg_match('/^\d{10}$/', $d[$field] ?? '')) $err[$field] = "Select {$what}.";
+    }
     $lat = filter_var($d['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
     $lng = filter_var($d['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
     if ($lat === false || $lat < -90 || $lat > 90) $err['latitude'] = 'Drop a pin on the map.';
