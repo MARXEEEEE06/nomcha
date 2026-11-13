@@ -44,6 +44,7 @@ function current_role(PDO $pdo): ?string {
 function require_role(PDO $pdo, array $roles): void {
     $role = current_role($pdo);
     if ($role === null) {
+        $_SESSION['flash_toasts'][] = ['kind' => 'warning', 'text' => 'Please log in first to access that page.'];
         header('Location: login.php');
         exit;
     }
@@ -64,10 +65,9 @@ function require_admin(PDO $pdo): void { require_role($pdo, ['admin']); }
 function account_password_matches(string $email, string $passwordHash, string $password): bool {
     if ($password === '') return false;
     if (password_verify($password, $passwordHash)) return true;
-    $configFile = __DIR__ . '/local_config.php';
-    $config = is_file($configFile) ? require $configFile : [];
-    return is_array($config)
-        && ($config['allow_test_admin_login'] ?? false) === true
+    require_once __DIR__ . '/make_mailer.php';
+    $config = nomcha_config();
+    return ($config['allow_test_admin_login'] ?? false) === true
         && in_array(strtolower($email), ['admin@admin', 'nomchaadmin@admin'], true)
         && hash_equals('@NomchaAdmin2026', $password);
 }
