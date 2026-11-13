@@ -341,11 +341,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			}
 		}
 		$deliveryFee = $form['fulfillment'] === 'pickup' ? 0.00 : round(30 + ceil($deliveryDistanceKm) * 10, 2);
+		$deliveryFreeForNewAccount = false;
 		if (!$errors && $form['fulfillment'] === 'delivery' && $subtotal >= 400) {
 			$accountAge = $pdo->prepare('SELECT created_at FROM user_credentials WHERE user_id = ?');
 			$accountAge->execute([(int)$_SESSION['user_id']]);
 			$createdAt = $accountAge->fetchColumn();
-			if ($createdAt && strtotime((string)$createdAt) > strtotime('-1 month')) $deliveryFee = 0.00;
+			if ($createdAt && strtotime((string)$createdAt) > strtotime('-1 month')) {
+				$deliveryFee = 0.00;
+				$deliveryFreeForNewAccount = true;
+			}
 		}
 		if (!$errors && $subtotal > 4999) $errors[] = 'Online orders are limited to ₱4,999. Orders of ₱5,000 or more must be placed through your nearest Nomcha branch.';
 		$promo = null; $claimId = (int)($_POST['voucher_claim_id'] ?? 0); $promoCode = strtoupper(trim((string)($_POST['promo_code'] ?? ''))); $discountAmount = 0.00;
@@ -392,8 +396,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								'INSERT INTO customer_orders
 								 (order_number, user_id, fulfillment, branch_id, customer_name, phone, delivery_address,
 									delivery_instructions, pickup_location, scheduled_for, payment_method,
-									 subtotal, promo_id, discount_amount, delivery_fee, total)
-									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+									subtotal, promo_id, discount_amount, delivery_fee, delivery_distance_km, total)
+									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 						)->execute([
 								$orderNumber,
 								$userId,
@@ -410,6 +414,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								$promo ? (int)$promo['promo_id'] : null,
 								$discountAmount,
 								$deliveryFee,
+								$form['fulfillment'] === 'delivery' ? round($deliveryDistanceKm, 2) : null,
 								$total,
 						]);
 						$orderId = (int)$pdo->lastInsertId();
@@ -439,6 +444,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								'number' => $orderNumber,
 								'subtotal' => $subtotal,
 								'delivery_fee' => $deliveryFee,
+								'delivery_free_new_account' => $deliveryFreeForNewAccount,
+								'promo_name' => $promo['name'] ?? null,
 								'total' => $total,
 							'discount' => $discountAmount,
 								'fulfillment' => $form['fulfillment'],
@@ -529,11 +536,12 @@ $orderHistoryError = null;
 if ($viewOrders) {
 		try {
 				$historyQuery = $pdo->prepare(
-						"SELECT o.order_id, o.order_number, o.fulfillment, o.subtotal, o.delivery_fee, o.total,
-						 o.status, o.payment_status, o.created_at, o.scheduled_for,
+						"SELECT o.order_id, o.order_number, o.fulfillment, o.subtotal, o.delivery_fee, o.delivery_distance_km,
+						 o.discount_amount, o.total, o.status, o.payment_status, o.created_at, o.scheduled_for, p.name AS promo_name,
 						 (SELECT GROUP_CONCAT(CONCAT(i.quantity, ' x ', i.item_name) ORDER BY i.order_item_id SEPARATOR ' · ')
 						  FROM customer_order_items i WHERE i.order_id = o.order_id) AS item_summary
 						 FROM customer_orders o
+						 LEFT JOIN promotions p ON p.promo_id = o.promo_id
 						 WHERE o.user_id = ?
 						 ORDER BY o.created_at DESC LIMIT 50"
 				);
@@ -549,7 +557,8 @@ require 'includes/header.php';
 
 <main class="order-page" data-order-confirmed="<?= $orderConfirmation ? 'yes' : 'no' ?>" data-ph-now="<?= e($scheduleNow->format('Y-m-d\TH:i')) ?>">
 	<?php render_toasts($errors ? [['kind' => 'danger', 'title' => 'Please review your order', 'items' => $errors]] : []); ?>
-	<section class="order-heading-band"></section>
+	<section class="order-heading-band" aria-hidden="true"></section>
+	<?php if ($viewOrders): ?><section class="order-tracking-shell" aria-live="polite"><div class="container"><div id="delivery-tracking-banner" class="delivery-tracking-banner" hidden></div></div></section><?php endif; ?>
 	<?php if ($orderConfirmation): ?>
 		<section class="container pt-4" aria-live="polite">
 			<div class="order-success">
@@ -557,7 +566,8 @@ require 'includes/header.php';
 				<div>
 					<h2 class="h4 mb-1">Order request received</h2>
 					<p class="mb-1">Reference <strong><?= e($orderConfirmation['number']) ?></strong>. Nomcha will contact you to confirm availability<?= $orderConfirmation['fulfillment'] === 'delivery' ? ' and delivery coverage' : ' and pickup timing' ?>.</p>
-					<p class="mb-0">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if(($orderConfirmation['discount']??0)>0):?> · Voucher discount: <strong>−₱<?=number_format((float)$orderConfirmation['discount'],2)?></strong><?php endif;?><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Estimated delivery: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
+					<p class="mb-1">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if(($orderConfirmation['discount']??0)>0):?> · <?=e((string)($orderConfirmation['promo_name']??'Promo / voucher'))?> discount: <strong>−₱<?=number_format((float)$orderConfirmation['discount'],2)?></strong><?php endif;?><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Delivery fee: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
+					<?php if (!empty($orderConfirmation['delivery_free_new_account'])): ?><p class="small mb-0">Free delivery applied: new accounts under one month old receive free delivery on delivery orders with at least ₱400 in items.</p><?php endif; ?>
 				</div>
 			</div>
 		</section>
@@ -581,6 +591,7 @@ require 'includes/header.php';
 							<div class="order-history-heading">
 								<div><strong><?= e($myOrder['order_number']) ?></strong><time datetime="<?= e(date(DATE_ATOM, strtotime($myOrder['created_at']))) ?>"><?= e(date('M j, Y · g:i A', strtotime($myOrder['created_at']))) ?></time></div>
 								<span class="order-history-status"><?= e(ucfirst($myOrder['status'])) ?></span>
+								<?php if ($myOrder['fulfillment'] === 'delivery'): ?><button type="button" class="order-track-button" data-track-delivery data-order-number="<?=e($myOrder['order_number'])?>" data-distance-km="<?=e($myOrder['delivery_distance_km'] === null ? '' : (string)$myOrder['delivery_distance_km'])?>" data-distance-known="<?=$myOrder['delivery_distance_km'] === null ? 'no' : 'yes'?>" aria-controls="delivery-tracking-banner">Track delivery</button><?php endif; ?>
 							<?php if (strtolower((string)$myOrder['status']) === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger" data-cancel-order="<?= (int)$myOrder['order_id'] ?>" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">Cancel order</button><?php endif; ?>
 							</div>
 							<p class="order-history-items mb-2"><?= e($itemSummary ?: 'No item details') ?></p>
@@ -588,6 +599,7 @@ require 'includes/header.php';
 								<span><?= e(ucfirst($myOrder['fulfillment'])) ?><?= $myOrder['scheduled_for'] ? ' · ' . e(date('M j, g:i A', strtotime($myOrder['scheduled_for']))) : ' · ASAP' ?></span>
 								<strong>₱<?= number_format((float)($myOrder['total'] ?? $myOrder['subtotal']), 2) ?><?= $myOrder['total'] === null ? ' + delivery fee' : '' ?></strong>
 							</div>
+							<div class="order-history-breakdown"><span>Items ₱<?=number_format((float)$myOrder['subtotal'],2)?></span><?php if($myOrder['fulfillment']==='delivery'):?><span>Delivery ₱<?=number_format((float)($myOrder['delivery_fee']??0),2)?></span><?php endif;?><?php if((float)($myOrder['discount_amount']??0)>0):?><span><?=e((string)($myOrder['promo_name']??'Promo / voucher'))?> discount −₱<?=number_format((float)$myOrder['discount_amount'],2)?></span><?php endif;?></div>
 						</article>
 					<?php endforeach; ?>
 				</div>
@@ -635,15 +647,15 @@ require 'includes/header.php';
 
 				<section class="col-lg-6 order-catalog" aria-label="Menu items">
 					<div class="container py-4 py-lg-5">
-			<?php if (!empty($_SESSION['flash_success'])): ?><div class="alert alert-success"><?= e((string)$_SESSION['flash_success']) ?></div><?php unset($_SESSION['flash_success']); endif; ?>
-			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
-				<div>
-					<p class="order-eyebrow mb-2">Nomcha, made to order</p>
-					<h1 class="mb-1">Order online</h1>
-					<p class="mb-0">Choose your favorites, then select delivery or pickup.</p>
-				</div>
-			</div>
-		</div>
+						<?php if (!empty($_SESSION['flash_success'])): ?><div class="alert alert-success"><?= e((string)$_SESSION['flash_success']) ?></div><?php unset($_SESSION['flash_success']); endif; ?>
+						<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+							<div>
+								<p class="order-eyebrow mb-2">Nomcha, made to order</p>
+								<h1 class="mb-1">Order online</h1>
+								<p class="mb-0">Choose your favorites, then select delivery or pickup.</p>
+							</div>
+						</div>
+					</div>
 					<?php foreach ($categories as $category): ?>
 						<?php $rootItems = $itemsByCategory[$category['category_id']] ?? []; ?>
 						<section class="order-menu-section" id="order-category-<?= (int)$category['category_id'] ?>">
@@ -731,12 +743,12 @@ require 'includes/header.php';
 							<div><span>Item subtotal</span><strong id="cart-subtotal">₱0.00</strong></div>
 							<div class="order-fee-row"><span>Delivery fee</span><span id="delivery-fee-label">Choose address and branch</span></div>
 						</div>
-						<p class="order-helper">New accounts less than one month old get free delivery when item subtotal is at least ₱400. It is applied automatically at checkout.</p>
+						<p class="order-helper">Free delivery applies automatically to delivery orders with at least ₱400 in items for accounts less than one month old.</p>
 
 						<fieldset class="order-form-section">
 							<legend>Voucher or promo code</legend>
 							<?php if($claimedVouchers):?><label class="form-label" for="voucher-claim-id">My claimed vouchers</label><select class="form-select mb-2" id="voucher-claim-id" name="voucher_claim_id"><option value="">No voucher</option><?php foreach($claimedVouchers as $voucher):?><option value="<?=(int)$voucher['claim_id']?>"><?=e($voucher['name'])?> · <?=e($voucher['discount_type']==='percent'?$voucher['discount_value'].'% off':($voucher['discount_type']==='fixed'?'₱'.number_format((float)$voucher['discount_value'],2).' off':'Free item'))?></option><?php endforeach;?></select><?php endif;?>
-							<label class="form-label" for="promo-code">Promo code</label><input class="form-control" id="promo-code" name="promo_code" maxlength="60" placeholder="Enter promo code"><p class="order-helper mb-0">Only one voucher or promo code can be used per order.</p>
+							<label class="form-label" for="promo-code">Promo code</label><input class="form-control" id="promo-code" name="promo_code" maxlength="60" placeholder="Enter promo code"><p class="order-helper mb-0">Only one voucher or promo code can be used per order. Any discount will be itemized in your order summary.</p>
 						</fieldset>
 
 						<fieldset class="order-form-section">
@@ -873,6 +885,6 @@ require 'includes/header.php';
 <script id="order-branch-data" type="application/json"><?= json_encode($branches, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <script id="order-address-data" type="application/json"><?= json_encode($savedAddresses, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <?php
-$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/order.js?v=' . filemtime(__DIR__ . '/assets/js/order.js') . '"></script><script src="assets/js/order-branch-picker.js?v=' . filemtime(__DIR__ . '/assets/js/order-branch-picker.js') . '"></script>';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/order.js?v=' . filemtime(__DIR__ . '/assets/js/order.js') . '"></script><script src="assets/js/order-branch-picker.js?v=' . filemtime(__DIR__ . '/assets/js/order-branch-picker.js') . '"></script><script src="assets/js/order-tracking.js?v=' . filemtime(__DIR__ . '/assets/js/order-tracking.js') . '"></script>';
 require 'includes/footer.php';
 ?>

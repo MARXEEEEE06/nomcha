@@ -236,7 +236,19 @@ html { scroll-behavior: smooth; }
 .btn.pw-toggle:hover { background: var(--nc-cream); color: var(--nc-red); }
 
 /* Ordering */
-.order-heading-band { background: #fff; background-image: url('https://images.tablevibestaticassets.co/bmc94kso5d5726lzllewksv2vop6'); background-size: percentage; background-repeat: no-repeat; background-position: center; border-bottom: 1px solid rgba(74,52,40,.12); padding: 15rem 0; }
+.order-heading-band { min-height: 5.5rem; display: flex; align-items: center; background: #f3ece2; border-bottom: 1px solid rgba(74,52,40,.12); padding: 1rem 0; }
+.order-tracking-shell { background: #f3ece2; }
+.delivery-tracking-banner { padding: 1rem 1.2rem; border: 1px solid rgba(74,52,40,.14); border-radius: .5rem; background: #fff; box-shadow: 0 5px 18px rgba(36,34,31,.08); }
+.delivery-tracking-banner[hidden] { display: none; }
+.delivery-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.delivery-tracking-heading h2 { color: var(--nc-red); font-family: 'Poppins', sans-serif; font-weight: 600; }
+.delivery-tracking-copy { margin: .55rem 0 .35rem; color: #746b64; font-size: .8rem; }
+.delivery-route { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: .8rem; }
+.delivery-route-label { color: #66574e; font-size: .72rem; font-weight: 600; }
+.delivery-route-track { position: relative; height: 58px; display: flex; align-items: center; }
+.delivery-route-track::before { content: ''; position: absolute; inset: auto 0; height: 4px; border-radius: 4px; background: #e8ddd0; }
+.delivery-route-progress { position: absolute; left: 0; height: 4px; width: 0; border-radius: 4px; background: var(--nc-orange); }
+.delivery-rider { position: absolute; z-index: 1; left: 0; bottom: 1px; width: 62px; height: 42px; object-fit: contain; }
 .order-heading-band h1 { color: var(--nc-red); font-size: clamp(2rem, 3vw, 2.8rem); }
 .order-heading-band p:not(.order-eyebrow) { color: #62574f; }
 .order-eyebrow { color: var(--nc-orange); font-size: .75rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
@@ -489,7 +501,9 @@ html { scrollbar-width: thin; scrollbar-color: var(--nc-orange) transparent; }
 .order-history-empty p { color: #746b64; }
 .order-history-list { display: grid; gap: .75rem; }
 .order-history-row { padding: 1rem 1.1rem; border: 1px solid rgba(74,52,40,.14); border-radius: .35rem; background: #fff; }
+.order-history-row.is-tracking { border-color: var(--nc-orange); box-shadow: 0 0 0 2px rgba(185,154,123,.16); }
 .order-history-heading, .order-history-heading > div, .order-history-meta { display: flex; justify-content: space-between; align-items: center; gap: .7rem; }
+.order-history-heading { flex-wrap: wrap; }
 .order-history-heading > div { align-items: baseline; flex-wrap: wrap; }
 .order-history-heading strong { color: var(--nc-red); }
 .order-history-heading time { color: #746b64; font-size: .75rem; }
@@ -497,6 +511,13 @@ html { scrollbar-width: thin; scrollbar-color: var(--nc-orange) transparent; }
 .order-history-items { color: #53483f; font-size: .85rem; line-height: 1.55; }
 .order-history-meta { color: #746b64; font-size: .75rem; }
 .order-history-meta strong { color: var(--nc-red); font-size: .88rem; }
+.order-history-breakdown { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin-top: .45rem; color: #746b64; font-size: .72rem; }
+.order-track-button { padding: .35rem .65rem; border: 1px solid var(--nc-orange); border-radius: 999px; background: #fff; color: var(--nc-red); font-size: .72rem; font-weight: 600; }
+.order-track-button:hover, .order-track-button[aria-expanded="true"] { background: var(--nc-orange); color: #fff; }
+.legal-content-page { flex: 1 0 auto; width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .delivery-route-progress, .delivery-rider { animation: none; }
+}
 .order-schedule-trigger { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: .75rem; border: 1px solid rgba(74,52,40,.16); border-radius: .3rem; background: #fff; color: var(--nc-red); text-align: left; }
 .order-schedule-trigger > span { display: flex; align-items: center; gap: .3rem; }
 .order-schedule-trigger > span > i { color: var(--nc-orange); }

@@ -123,6 +123,12 @@ $categories = [];
 foreach ($eligibleItems as $item) $categories[$item['category_name']][] = $item;
 $claims = [];
 if ($role === 'customer') { $query=$pdo->prepare('SELECT promo_id FROM promotion_claims WHERE user_id=?'); $query->execute([(int)$_SESSION['user_id']]); $claims=array_map('intval',$query->fetchAll(PDO::FETCH_COLUMN)); }
+$myAvailableVouchers = [];
+if ($role === 'customer') {
+    $query = $pdo->prepare("SELECT c.claim_id,c.claimed_at,p.name,p.description,p.discount_type,p.discount_value,p.minimum_spend,p.ends_at FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.user_id=? AND c.redeemed_at IS NULL AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at AND (p.usage_limit IS NULL OR p.usage_limit=0 OR p.usage_count<p.usage_limit) ORDER BY c.claimed_at DESC");
+    $query->execute([(int)$_SESSION['user_id']]);
+    $myAvailableVouchers = $query->fetchAll();
+}
 $metrics = $isTeam ? $pdo->query('SELECT p.promo_id,COUNT(r.redemption_id) redemptions,COALESCE(SUM(r.discount_amount),0) discount_total FROM promotions p LEFT JOIN promotion_redemptions r ON r.promo_id=p.promo_id GROUP BY p.promo_id')->fetchAll(PDO::FETCH_UNIQUE) : [];
 $pageTitle = 'Vouchers & Promos';
 require 'includes/header.php';
@@ -131,6 +137,7 @@ require 'includes/header.php';
  <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4"><div><p class="text-uppercase small fw-semibold text-secondary mb-1">Nomcha offers</p><h1><?= $isTeam ? 'Promotions' : 'Vouchers & Promos' ?></h1><p class="text-secondary mb-0"><?= $isTeam ? 'Promos invite customers to participate. Vouchers apply discounts at checkout.' : 'Join promotions or claim vouchers for your next order.' ?></p></div><?php if ($isTeam): ?><button class="btn btn-order" data-bs-toggle="modal" data-bs-target="#promoModal"><i class="bi bi-plus-lg me-1"></i>Create offer</button><?php endif; ?></div>
  <?php $toastMessages=[]; if (isset($_GET['saved'])) $toastMessages[]=['kind'=>'success','text'=>'Offer saved and added to the team inbox.']; foreach ($errors as $error) $toastMessages[]=['kind'=>'danger','text'=>$error]; render_toasts($toastMessages); ?>
  <ul class="nav nav-pills mb-4"><li class="nav-item"><a class="nav-link <?=$tab==='promos'?'active':''?>" href="?tab=promos">Promos</a></li><li class="nav-item"><a class="nav-link <?=$tab==='vouchers'?'active':''?>" href="?tab=vouchers">Vouchers</a></li></ul>
+ <?php if ($tab === 'vouchers' && $role === 'customer'): ?><section class="form-panel mb-4"><h2 class="h4">My available vouchers</h2><?php if ($myAvailableVouchers): ?><div class="row g-3"><?php foreach ($myAvailableVouchers as $voucher): ?><div class="col-md-6"><div class="border rounded p-3 h-100"><div class="d-flex justify-content-between gap-2"><strong><?=e($voucher['name'])?></strong><span class="badge text-bg-success">Unused</span></div><p class="small text-secondary mt-2 mb-2"><?=e($voucher['description'])?></p><p class="small mb-2"><?=e($voucher['discount_type']==='percent'?$voucher['discount_value'].'% off':($voucher['discount_type']==='fixed'?'₱'.number_format((float)$voucher['discount_value'],2).' off':'Free item'))?><?php if ((float)$voucher['minimum_spend']>0): ?> · ₱<?=number_format((float)$voucher['minimum_spend'],2)?> minimum<?php endif; ?></p><p class="small text-secondary mb-0">Expires <?=date('M j, Y',strtotime($voucher['ends_at']))?> · Choose it at checkout.</p></div></div><?php endforeach; ?></div><?php else: ?><p class="text-secondary mb-0">You have no available unused vouchers. Claim one below to add it here.</p><?php endif; ?></section><?php endif; ?>
  <div class="row g-4">
  <?php $shown=0; foreach ($promos as $promo): if (($tab==='vouchers') !== (bool)$promo['is_platform_voucher']) continue; $shown++; $faqs=json_decode((string)($promo['faq_json']??''),true); if (!is_array($faqs)||!$faqs) $faqs=$promo['faq_question']&&$promo['faq_answer']?[['question'=>$promo['faq_question'],'answer'=>$promo['faq_answer']]]:[]; ?>
   <div class="col-md-6"><article class="form-panel h-100 promo-card">

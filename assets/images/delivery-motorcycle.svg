@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 110" role="img" aria-labelledby="title">
+  <title id="title">Nomcha motorcycle delivery rider</title>
+  <ellipse cx="91" cy="99" rx="71" ry="6" fill="#5a3426" opacity=".12"/>
+  <circle cx="48" cy="81" r="21" fill="#241814"/><circle cx="48" cy="81" r="11" fill="#f4eee7"/><circle cx="48" cy="81" r="5" fill="#b4232c"/>
+  <circle cx="137" cy="81" r="21" fill="#241814"/><circle cx="137" cy="81" r="11" fill="#f4eee7"/><circle cx="137" cy="81" r="5" fill="#b4232c"/>
+  <path d="M42 69h23l13-19h20l19 7 17 14h10v9h-13a21 21 0 0 0-41 0H69a21 21 0 0 0-41 0h-9V68h17z" fill="#c52830" stroke="#241814" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m77 51 9-16h18l14 25M73 50l-13 19m41-17 13 21" fill="none" stroke="#241814" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+  <path d="M79 34h22l-5 8H76z" fill="#e5a02f" stroke="#241814" stroke-width="3"/>
+  <path d="m92 34 5-17 18-5 11 10-5 18-17 5z" fill="#e5a02f" stroke="#241814" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m110 30 12 2" stroke="#241814" stroke-linecap="round" stroke-width="4"/>
+  <path d="M124 58h19l9 9h-17z" fill="#f5ca62" stroke="#241814" stroke-width="3"/>
+  <path d="M20 70h12" stroke="#e5a02f" stroke-linecap="round" stroke-width="4"/>
+</svg>

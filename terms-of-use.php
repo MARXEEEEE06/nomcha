@@ -1,0 +1,21 @@
+<?php $pageTitle = 'Terms of Use'; require 'includes/header.php'; ?>
+<main class="container py-5 flex-grow-1 w-100 legal-content-page"><article class="form-panel mx-auto" style="max-width:900px"><h1 class="mb-4">Terms of Use</h1>
+<h2 class="h4">Nomcha FOOD DELIVERY TERMS &amp; CONDITIONS:</h2><ul>
+<li>Nomcha delivery hotline 633-1818, online delivery and web app ordering platforms are available from 9am to 11pm, except special delivery areas that accept orders from 9am to 2am.</li>
+<li>Maximum food purchase of ₱2,999 can be ordered via cash, credit card and mobile QR payment options.</li>
+<li>Orders above ₱3,000 can be placed directly through the nearest Nomcha branch. Please see <a href="branches.php">store locations and contact information</a>.</li>
+<li>Food delivery time depends on product availability, food preparation, customer distance from the nearest Nomcha store, or the time agreed with our customer service representative.</li>
+<li>Delivery services may be temporarily suspended during calamities, extreme weather conditions, and other events that might affect delivery personnel safety.</li>
+<li>Prices are subject to change without prior notice.</li>
+<li>Cancellation must be made through the Nomcha Delivery hotline (633-1818) or online platform within 5 minutes of ordering. Changes to an order reset the agreed delivery time.</li></ul>
+<h2 class="h4 mt-5">Nomcha WEBSITE APP TERMS OF USE:</h2>
+<p>By entering Nomcha’s website, you agree to the terms and conditions of use governed by its owner and operator, Nomcha Philippines (“Nomcha”).</p>
+<h3 class="h5">Voluntary Personal Data Submission &amp; Tracking Technology</h3><p>Nomcha uses the Internet to collect and process your personal information, which may be used and transmitted outside the Philippines:</p>
+<ul><li>Salutation</li><li>Full name</li><li>Address type (Home / Work / Other Address)</li><li>Delivery address</li><li>Email address</li><li>Contact number (Home / Work / Other Contact Number)</li></ul>
+<p>The data you share will be used to create your Nomcha website account, process delivery orders, and provide marketing communications and offers. Your account may only be accessed by you and is protected with appropriate security.</p>
+<p>You are responsible for maintaining the confidentiality of your password and account, and for activity by you or anyone using your account. Safeguard your password. If you believe your account has been compromised, contact us at <a href="mailto:customercare@nomcha.com.ph">customercare@nomcha.com.ph</a> or call 633-1818. You agree to indemnify and hold Nomcha harmless for losses incurred by another party using your account because you failed to take reasonable care to safeguard your password.</p>
+<p>Submitted personal data is used for Nomcha business purposes, which may include sharing it with affiliates and subsidiaries. Nomcha and its agencies do not share data collected here with third parties except:</p>
+<ul><li>To maintain this site.</li><li>To update you on special offers and customize content for a better customer experience. Personally identifiable data is not used for direct marketing or unsolicited follow-up unless you expressly consent.</li><li>To identify the Nomcha store that will prepare and deliver your order.</li><li>To give delivery rider agencies the information needed to deliver your order.</li><li>To improve our products and services.</li><li>When required by law or court order, or reasonably necessary to comply with legal process, respond to claims, or protect Nomcha, its customers and the public.</li><li>In an acquisition of all or part of Nomcha or its business, or a reorganization or insolvency proceeding, subject to applicable law.</li></ul>
+<p>Nomcha uses cookies to understand and improve how users use this application and to remarket to visitors of <a href="https://www.nomcha.com.ph/">nomcha.com.ph</a> with customized communications through Nomcha ads across the internet.</p>
+<p>You can set your browser to warn you before accepting cookies or refuse them, or turn cookies off. Some application features may not work fully if you do so. Cookies are not required to use or navigate many parts of the application.</p>
+</article></main><?php require 'includes/footer.php'; ?>

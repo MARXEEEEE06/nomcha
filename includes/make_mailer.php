@@ -55,12 +55,14 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
     }
 
     $subject = match ($purpose) {
+        'login' => 'Your Nomcha login code',
         'registration' => 'Verify your Nomcha account',
         'account_deletion' => 'Confirm your Nomcha account deletion',
         'email_change' => 'Verify your new Nomcha email',
         default => 'Your Nomcha password reset code',
     };
     $action = match ($purpose) {
+        'login' => 'sign in to your Nomcha account',
         'registration' => 'verify your email address',
         'account_deletion' => 'confirm your account deletion',
         'email_change' => 'verify your new email address',
@@ -81,7 +83,7 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         'subject' => $subject,
         'text' => $text,
         'html' => $html,
-        'purpose' => $purpose,
+        'purpose' => 'otp',
         'route' => 'auth',
     ];
     $payload = json_encode($payloadData, JSON_UNESCAPED_SLASHES);
@@ -129,7 +131,7 @@ function send_sample_email(string $to): bool {
         'subject' => 'Nomcha sample email',
         'text' => $text,
         'html' => $html,
-        'purpose' => 'sample',
+        'purpose' => 'otp',
         'route' => 'auth',
     ], JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the sample email payload.');
@@ -162,7 +164,7 @@ function send_employee_welcome_email(string $to, string $employeeName, string $t
     $subject = 'Your Nomcha employee account';
     $text = "Hello {$employeeName},\n\nYour Nomcha employee account is ready.\nTemporary password: {$temporaryPassword}\n\nLog in using this password, then use Forgot password to choose a new one. Keep this email private.";
     $html = '<p>Hello ' . $safeName . ',</p><p>Your Nomcha employee account is ready.</p><p>Temporary password: <strong>' . $safePassword . '</strong></p><p>Log in using this password, then use Forgot password to choose a new one. Keep this email private.</p>';
-    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'employee_welcome'], JSON_UNESCAPED_SLASHES);
+    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'], JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the email payload.');
     $headers = "Content-Type: application/json\r\n";
     $token = trim((string)($config['make_webhook_token'] ?? ''));
@@ -184,7 +186,7 @@ function send_customer_welcome_email(string $to, string $customerName): bool {
     $subject = 'Welcome to Nomcha';
     $text = "Hello {$customerName},\n\nWelcome to Nomcha! Your account is ready. Explore the menu, claim platform vouchers, and order your favorites online.\n\nWe’re glad you’re here.\nNomcha";
     $html = '<p>Hello ' . $safeName . ',</p><p>Welcome to Nomcha! Your account is ready.</p><p>Explore the menu, claim platform vouchers, and order your favorites online.</p><p>We’re glad you’re here.<br>Nomcha</p>';
-    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'customer_welcome','route'=>'notification'], JSON_UNESCAPED_SLASHES);
+    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'], JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the welcome email.');
     $headers = "Content-Type: application/json\r\n";
     $token = trim((string)($config['make_webhook_token'] ?? ''));
@@ -215,7 +217,7 @@ function send_subscription_welcome_email(string $to, string $unsubscribeUrl): bo
     $subject = 'You are subscribed to Nomcha';
     $text = "Thanks for subscribing to Nomcha email updates about promotions, vouchers, and menu news.\n\nIf this was not you, unsubscribe here: {$unsubscribeUrl}\n\nNomcha";
     $html = '<p>Thanks for subscribing to Nomcha email updates about promotions, vouchers, and menu news.</p><p>If this was not you, <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES, 'UTF-8') . '">unsubscribe here</a>.</p><p>Nomcha</p>';
-    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'subscription_welcome','route'=>'notification'], JSON_UNESCAPED_SLASHES);
+    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'], JSON_UNESCAPED_SLASHES);
     if ($payload === false) throw new RuntimeException('Could not prepare the subscription email.');
     $headers = "Content-Type: application/json\r\n";
     $token = trim((string)($config['make_webhook_token'] ?? ''));
@@ -240,7 +242,7 @@ function send_notification_email(string $to,string $subject,string $text,string 
     $text .= "\n\nTo stop receiving Nomcha email updates, unsubscribe here: {$unsubscribeUrl}";
     $html=nl2br(htmlspecialchars($text,ENT_QUOTES,'UTF-8'));
     $html .= '<p><a href="' . htmlspecialchars($unsubscribeUrl,ENT_QUOTES,'UTF-8') . '">Unsubscribe from Nomcha email updates</a></p>';
-    $payload=json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>$purpose,'route'=>'notification'],JSON_UNESCAPED_SLASHES);
+    $payload=json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'],JSON_UNESCAPED_SLASHES);
     if($payload===false)throw new RuntimeException('Could not prepare the notification email.');
     $headers="Content-Type: application/json\r\n";$token=trim((string)($config['make_webhook_token']??''));if($token!=='')$headers.='x-make-apikey: '.$token."\r\n";
     $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>$payload,'timeout'=>10,'ignore_errors'=>true]]);$response=@file_get_contents($webhook,false,$ctx);$status=$http_response_header[0]??'';

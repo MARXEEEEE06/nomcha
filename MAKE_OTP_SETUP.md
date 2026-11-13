@@ -4,14 +4,14 @@ Nomcha generates and checks the six-digit codes. Make only receives the email co
 
 ## 1. Prepare the database
 
-In phpMyAdmin, select `nomcha_db`, open the **Import** tab, and import `database/migrations/20261107_auth_otp.sql`.
+In phpMyAdmin, select `nomcha_db`, open the **Import** tab, and apply the OTP migrations in date order, including `database/migrations/20261116_login_otp.sql` to enable OTP login.
 
 ## 2. Create the Make scenario
 
 1. Create a scenario and add **Webhooks > Custom webhook** as its first module.
 2. Create the webhook. In its settings, add an API key if available; the app sends it in the `x-make-apikey` header.
 3. Copy the webhook URL.
-4. Add your email module (for example, Gmail or Email) after the webhook.
+4. Add one Gmail module after the webhook and filter the scenario for `route` equal to `auth`. Use this same module for registration, account deletion, email changes, password reset, and login codes.
 5. Map the webhook values into the email module:
    - Recipient: `to`
    - Subject: `subject`
@@ -34,6 +34,6 @@ The webhook's immediate `200 Accepted` response means Make accepted or queued th
 
 ## Payload fields
 
-The webhook receives JSON with `to`, `from_email`, `from_name`, `subject`, `text`, `html`, and `purpose`. It does not receive the OTP hash or account password. The plain OTP is included only because the email scenario must deliver it to the recipient.
+OTP webhook requests use `purpose: otp` and `route: auth`; the payload retains `purpose` for compatibility, but Make routing should use `route`. The webhook receives `to`, `from_email`, `from_name`, `subject`, `text`, `html`, and `purpose`. It does not receive the OTP hash or account password. The plain OTP is included only because the email scenario must deliver it to the recipient.
 
 Nomcha records challenge requests, Make acceptance/failure, verification outcomes, and password changes in `auth_security_logs`. It does not log the plain OTP.
