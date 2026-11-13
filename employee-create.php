@@ -1,5 +1,5 @@
 <?php
-require 'includes/auth_helpers.php'; require 'includes/db.php'; require 'includes/media_helpers.php'; require 'includes/make_mailer.php'; require 'includes/toasts.php'; require 'includes/psgc_helpers.php'; require_admin($pdo);
+require 'includes/auth_helpers.php'; require 'includes/db.php'; require 'includes/media_helpers.php'; require_once 'includes/make_mailer.php'; require 'includes/toasts.php'; require 'includes/psgc_helpers.php'; require_admin($pdo);
 $errors=[];
 $form=['first_name'=>'','middle_name'=>'','last_name'=>'','email_addr'=>'','mobileno'=>'','street_address'=>'','region_code'=>'','municipality_code'=>'','barangay_code'=>'','zip_code'=>'','role'=>'staff'];
 if ($_SERVER['REQUEST_METHOD']==='POST') {

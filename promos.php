@@ -2,7 +2,7 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 require 'includes/toasts.php';
-require 'includes/make_mailer.php';
+require_once 'includes/make_mailer.php';
 
 $role = current_role($pdo);
 $isTeam = $role === 'admin';

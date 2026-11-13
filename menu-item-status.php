@@ -1,5 +1,5 @@
 <?php
-require 'includes/auth_helpers.php'; require 'includes/db.php'; require 'includes/make_mailer.php'; require_staff_or_admin($pdo);
+require 'includes/auth_helpers.php'; require 'includes/db.php'; require_once 'includes/make_mailer.php'; require_staff_or_admin($pdo);
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_check($_POST['csrf'] ?? null)) { http_response_code(400); exit('Invalid request.'); }
 $id=filter_var($_POST['item_id']??null,FILTER_VALIDATE_INT); $status=(string)($_POST['new_status']??''); $word=$status==='activate'?'ACTIVATE':'DEACTIVATE';
 if (!$id || !in_array($status,['activate','deactivate'],true) || strtoupper(trim((string)($_POST['confirm_text']??'')))!==$word) { http_response_code(400); exit('Confirmation did not match.'); }

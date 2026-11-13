@@ -1,7 +1,7 @@
 <?php
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
-require 'includes/make_mailer.php';
+require_once 'includes/make_mailer.php';
 
 // Returning to login ends any in-progress password-reset flow for this session.
 $resetChallengeId = (int)($_SESSION['reset_challenge_id'] ?? 0);

@@ -44,6 +44,13 @@ if (str_contains($sslCa, '-----BEGIN CERTIFICATE-----')) {
         }
     }
     $sslCa = $caPath;
+} elseif ($sslCa !== '' && !is_file($sslCa)) {
+    // Resolve relative certificate paths from the project root, not from the
+    // process working directory (which differs between Apache and CLI PHP).
+    $projectRelativeCaPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . ltrim($sslCa, '/\\');
+    if (is_file($projectRelativeCaPath)) {
+        $sslCa = $projectRelativeCaPath;
+    }
 }
 
 $dsn = "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4";

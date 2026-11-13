@@ -1,5 +1,5 @@
 <?php
-require 'includes/auth_helpers.php'; require 'includes/db.php'; require 'includes/media_helpers.php'; require 'includes/make_mailer.php'; require 'includes/otp_helpers.php'; require 'includes/toasts.php'; require_admin($pdo);
+require 'includes/auth_helpers.php'; require 'includes/db.php'; require 'includes/media_helpers.php'; require_once 'includes/make_mailer.php'; require 'includes/otp_helpers.php'; require 'includes/toasts.php'; require_admin($pdo);
 $messages=[];
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (!csrf_check($_POST['csrf']??null)) $messages[]=['kind'=>'danger','text'=>'Session expired. Refresh and try again.'];
