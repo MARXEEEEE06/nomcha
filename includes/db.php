@@ -1,11 +1,23 @@
 <?php
 require_once __DIR__ . '/make_mailer.php';
 
-$host = trim((string)(nomcha_env('DB_HOST', '127.0.0.1')));
-$port = (int)nomcha_env('DB_PORT', '3306');
-$db   = nomcha_env('DB_NAME', 'nomcha_db');
-$user = nomcha_env('DB_USER', 'root');
-$pass = nomcha_env('DB_PASSWORD', '');
+$databaseUrl = trim(nomcha_env('DATABASE_URL', ''));
+$urlParts = $databaseUrl !== '' ? parse_url($databaseUrl) : false;
+$urlScheme = is_array($urlParts) ? strtolower((string)($urlParts['scheme'] ?? '')) : '';
+if ($databaseUrl !== '' && (!is_array($urlParts) || !in_array($urlScheme, ['mysql', 'mysqls'], true))) {
+    http_response_code(500);
+    error_log('Nomcha DB connection failed: DATABASE_URL must be a valid mysql:// URL.');
+    exit('Database connection failed.');
+}
+
+// Explicit DB_* variables take precedence; otherwise use Aiven Runtime's
+// integrated DATABASE_URL, then local development defaults.
+$host = trim(nomcha_env('DB_HOST', (string)($urlParts['host'] ?? '127.0.0.1')));
+$port = (int)nomcha_env('DB_PORT', (string)($urlParts['port'] ?? 3306));
+$urlDatabase = isset($urlParts['path']) ? rawurldecode(trim($urlParts['path'], '/')) : '';
+$db   = nomcha_env('DB_NAME', $urlDatabase !== '' ? $urlDatabase : 'nomcha_db');
+$user = nomcha_env('DB_USER', isset($urlParts['user']) ? rawurldecode($urlParts['user']) : 'root');
+$pass = nomcha_env('DB_PASSWORD', isset($urlParts['pass']) ? rawurldecode($urlParts['pass']) : '');
 $sslCa = trim(nomcha_env('DB_SSL_CA', ''));
 
 // PDO expects a certificate file path. Allow deployment platforms to provide
