@@ -122,7 +122,12 @@
     if (marker && map) {
       results.querySelectorAll('.branch-card.is-active').forEach(active => active.classList.remove('is-active'));
       card.classList.add('is-active');
-      markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
+      if (typeof markerLayer.zoomToShowLayer === 'function') {
+        markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
+      } else {
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 14));
+        marker.openPopup();
+      }
     }
   });
   results.addEventListener('keydown', event => {
@@ -194,7 +199,9 @@
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
     }).addTo(map);
-    markerLayer = L.markerClusterGroup({ showCoverageOnHover: false, spiderfyOnMaxZoom: true }).addTo(map);
+    markerLayer = typeof L.markerClusterGroup === 'function'
+      ? L.markerClusterGroup({ showCoverageOnHover: false, spiderfyOnMaxZoom: true }).addTo(map)
+      : L.layerGroup().addTo(map);
   } else {
     document.getElementById('branch-map').innerHTML = '<p class="branch-map-fallback">The interactive map could not load. Use each branch’s directions link to open a map.</p>';
   }
