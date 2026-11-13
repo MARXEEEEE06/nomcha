@@ -1,5 +1,5 @@
 <?php
-// PSGC address helpers: Region -> City/Municipality -> Barangay.
+// PSGC address helpers: Region -> Province and City/Municipality -> Barangay.
 // Data lives in the psgc_* tables (sql/psgc_data.sql). Codes are 10-char strings.
 
 const PSGC_CODE_RE  = '/^\d{10}$/';
@@ -10,27 +10,30 @@ function psgc_regions(PDO $pdo): array {
     return $pdo->query('SELECT psgc_code AS code, name AS label FROM psgc_regions ORDER BY psgc_code')->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function psgc_provinces(PDO $pdo, string $regionCode): array {
+    if (!preg_match(PSGC_CODE_RE, $regionCode)) return [];
+    $stmt = $pdo->prepare('SELECT psgc_code AS code, name AS label FROM psgc_provinces WHERE region_code = ? ORDER BY name');
+    $stmt->execute([$regionCode]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 /**
- * Cities/municipalities of a region, sorted by name. The label carries the province
- * ("Masantol, Pampanga") because names repeat within a region; independent cities and
- * NCR localities have no province. "City of Angeles" is shown as "Angeles City".
+ * Cities/municipalities of a region, sorted by name. Province is selected separately.
  * @return array<int, array{code:string,label:string}>
  */
 function psgc_localities(PDO $pdo, string $regionCode): array {
     if (!preg_match(PSGC_CODE_RE, $regionCode)) return [];
     $stmt = $pdo->prepare(
-        "SELECT l.psgc_code AS code, l.name, p.name AS province,
+        "SELECT l.psgc_code AS code, l.name,
                 TRIM(REGEXP_REPLACE(l.name, '^City of ', '')) AS sort_name
          FROM psgc_localities l
-         LEFT JOIN psgc_provinces p ON p.psgc_code = l.province_code
          WHERE l.region_code = ?
-         ORDER BY sort_name, p.name"
+         ORDER BY sort_name, l.name"
     );
     $stmt->execute([$regionCode]);
     $rows = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $label = $r['sort_name'] === $r['name'] ? $r['name'] : $r['sort_name'] . ' City';
-        if ($r['province'] !== null) $label .= ', ' . $r['province'];
         $rows[] = ['code' => $r['code'], 'label' => $label];
     }
     return $rows;
@@ -57,6 +60,7 @@ function psgc_form_state(PDO $pdo, array $sel): array {
     $cityInRegion = $city !== '' && in_array($city, array_column($localities, 'code'), true);
     return [
         'regions'    => psgc_regions($pdo),
+        'provinces'  => psgc_provinces($pdo, $region),
         'localities' => $localities,
         'barangays'  => $cityInRegion ? psgc_barangays($pdo, $city) : [],
     ];
@@ -67,7 +71,11 @@ function psgc_form_state(PDO $pdo, array $sel): array {
  * Returns codes plus official names, or null when the chain is invalid.
  * `province` is NOT NULL in user_addresses: NCR -> "Metro Manila", independent cities -> ''.
  */
-function psgc_resolve(PDO $pdo, string $regionCode, string $municipalityCode, string $barangayCode): ?array {
+function psgc_resolve(PDO $pdo, string $regionCode, string $provinceOrMunicipalityCode, string $municipalityOrBarangayCode, ?string $barangayCode = null): ?array {
+    $validateProvince = $barangayCode !== null;
+    $provinceCode = $validateProvince ? $provinceOrMunicipalityCode : '';
+    $municipalityCode = $validateProvince ? $municipalityOrBarangayCode : $provinceOrMunicipalityCode;
+    $barangayCode = $validateProvince ? $barangayCode : $municipalityOrBarangayCode;
     foreach ([$regionCode, $municipalityCode, $barangayCode] as $code) {
         if (!preg_match(PSGC_CODE_RE, $code)) return null;
     }
@@ -84,6 +92,7 @@ function psgc_resolve(PDO $pdo, string $regionCode, string $municipalityCode, st
     $stmt->execute([$barangayCode, $municipalityCode, $regionCode]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) return null;
+    if ($validateProvince && $provinceCode !== (string)($row['province_code'] ?? '')) return null;
     return [
         'region_code'       => $row['region_code'],
         'province_code'     => $row['province_code'],
@@ -99,6 +108,7 @@ function psgc_resolve(PDO $pdo, string $regionCode, string $municipalityCode, st
 function psgc_select_field(string $level, array $rows, ?string $selected, ?string $error = null, string $wrap = 'mb-3'): void {
     static $meta = [
         'region'       => ['region_code', 'Region', 'Select region'],
+        'province'     => ['province_code', 'Province', 'Select province (if applicable)'],
         'municipality' => ['municipality_code', 'City / Municipality', 'Select city / municipality'],
         'barangay'     => ['barangay_code', 'Barangay', 'Select barangay'],
     ];
@@ -109,7 +119,7 @@ function psgc_select_field(string $level, array $rows, ?string $selected, ?strin
     $disabled = $level !== 'region' && !$rows;
     echo '<div class="' . $h($wrap) . '">';
     echo '<label for="' . $name . '" class="form-label">' . $label . '</label>';
-    echo '<select id="' . $name . '" name="' . $name . '" class="form-select' . ($error ? ' is-invalid' : '') . '" required'
+    echo '<select id="' . $name . '" name="' . $name . '" class="form-select' . ($error ? ' is-invalid' : '') . '"' . ($level === 'province' ? '' : ' required')
         . ' data-psgc-level="' . $level . '" data-placeholder="' . $h($placeholder) . '" data-psgc-api="api/psgc.php"'
         . ($disabled ? ' disabled' : '') . '>';
     echo '<option value="">' . $h($placeholder) . '</option>';

@@ -24,13 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 $level  = (string)($_GET['level'] ?? '');
 $parent = (string)($_GET['parent'] ?? '');
 
-if (in_array($level, ['localities', 'barangays'], true) && !preg_match(PSGC_CODE_RE, $parent)) {
+if (in_array($level, ['provinces', 'localities', 'barangays'], true) && !preg_match(PSGC_CODE_RE, $parent)) {
     psgc_api_fail(400, 'A 10-digit parent code is required.');
 }
 
 try {
     $rows = match ($level) {
         'regions'    => psgc_regions($pdo),
+        'provinces'  => psgc_provinces($pdo, $parent),
         'localities' => psgc_localities($pdo, $parent),
         'barangays'  => psgc_barangays($pdo, $parent),
         default      => null,

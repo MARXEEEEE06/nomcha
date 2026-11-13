@@ -8,8 +8,6 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_check($_POST['csrf'] ?? null)) {
         $error = 'Your session expired. Please try again.';
-    } elseif (($_POST['consent'] ?? '') !== '1') {
-        $error = 'Please confirm you want to receive Nomcha email updates.';
     } else {
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
         if (strlen($email) > 255 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {

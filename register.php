@@ -12,7 +12,7 @@ if ($registrationSuccess) unset($_SESSION['registration_success_pending']);
 $errors = [];
 $notice = $_SESSION['registration_notice'] ?? null;
 unset($_SESSION['registration_notice']);
-$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'region_code' => '', 'municipality_code' => '', 'barangay_code' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
+$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'region_code' => '', 'province_code' => '', 'municipality_code' => '', 'barangay_code' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
 $password = $confirm = '';
 $verifying = !empty($_SESSION['registration_challenge_id']);
 
@@ -99,8 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = validate_registration($old, $password, $confirm);
         if (!$errors) {
             try {
-                $place = psgc_resolve($pdo, $old['region_code'], $old['municipality_code'], $old['barangay_code']);
-                if (!$place) $errors['barangay_code'] = 'Select a valid region, city / municipality and barangay.';
+                $place = psgc_resolve($pdo, $old['region_code'], $old['province_code'], $old['municipality_code'], $old['barangay_code']);
+                if (!$place) $errors['province_code'] = 'Choose the matching province and city / municipality for this region.';
                 $s = $pdo->prepare('SELECT 1 FROM user_credentials WHERE email_addr = ?');
                 $s->execute([$old['email_addr']]);
                 if ($s->fetchColumn()) $errors['email_addr'] = 'This email is already registered.';
@@ -201,7 +201,7 @@ require 'includes/header.php';
             <?php form_field('recipient_name', 'Recipient name', 'text', $old['recipient_name'], $errors['recipient_name'] ?? null, 'required maxlength="120" autocomplete="name" placeholder="e.g. Juan Dela Cruz"'); ?>
             <?php form_field('street_address', 'Address', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required maxlength="255" autocomplete="address-line1" placeholder="e.g. 123 Street, Camella Subdiv., 2nd Floor ABC Bldg."'); ?>
             <?php $psgc = psgc_form_state($pdo, $old); ?>
-            <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
+            <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('province', $psgc['provinces'], $old['province_code'], $errors['province_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div></div><div class="row"><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
             <label class="form-label" for="address-map">Map pin location</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div>
             <div class="row mt-2"><div class="col-sm-6"><?php form_field('latitude', 'Latitude', 'number', $old['latitude'], $errors['latitude'] ?? null, 'required step="any" min="-90" max="90"'); ?></div><div class="col-sm-6"><?php form_field('longitude', 'Longitude', 'number', $old['longitude'], $errors['longitude'] ?? null, 'required step="any" min="-180" max="180"'); ?></div></div>
           </fieldset>

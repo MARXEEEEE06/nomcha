@@ -1,7 +1,7 @@
 (() => {
-  // Cascading Region -> City/Municipality -> Barangay selects.
+  // Region loads Province and City/Municipality separately; municipalities load barangays.
   // Markup comes from psgc_select_field() (includes/psgc_helpers.php).
-  const CHILD = { region: 'municipality', municipality: 'barangay' };
+  const CHILD = { municipality: 'barangay' };
   const ENDPOINT_LEVEL = { region: 'localities', municipality: 'barangays' };
   const find = (form, level) => form.querySelector(`[data-psgc-level="${level}"]`);
 
@@ -27,8 +27,23 @@
 
   const loadChildren = async parent => {
     const form = parent.closest('form');
-    const childLevel = CHILD[parent.dataset.psgcLevel];
-    if (!form || !childLevel) return;
+    const parentLevel = parent.dataset.psgcLevel;
+    if (!form || !['region', 'municipality'].includes(parentLevel)) return;
+    if (parentLevel === 'region') {
+      const municipality = find(form, 'municipality');
+      const barangay = find(form, 'barangay');
+      if (municipality) clear(municipality);
+      if (barangay) clear(barangay);
+      const province = find(form, 'province');
+      if (province) {
+        clear(province);
+        province.disabled = !parent.value;
+        if (parent.value) loadOptions(parent, province, 'provinces');
+      }
+      loadOptions(parent, find(form, 'municipality'), 'localities');
+      return;
+    }
+    const childLevel = CHILD[parentLevel];
     for (let level = childLevel; level; level = CHILD[level]) {
       const select = find(form, level);
       if (select) clear(select);
@@ -36,12 +51,17 @@
     const child = find(form, childLevel);
     if (!child || !parent.value) return;
 
+    loadOptions(parent, child, ENDPOINT_LEVEL[parentLevel]);
+  };
+
+  const loadOptions = async (parent, child, endpoint) => {
+    if (!child || !parent.value) return;
     const token = `${Date.now()}-${Math.random()}`;
     child.dataset.psgcToken = token;
     child.replaceChildren(new Option('Loading…', ''));
     try {
       const api = parent.dataset.psgcApi || 'api/psgc.php';
-      const url = `${api}?level=${ENDPOINT_LEVEL[parent.dataset.psgcLevel]}&parent=${encodeURIComponent(parent.value)}`;
+      const url = `${api}?level=${endpoint}&parent=${encodeURIComponent(parent.value)}`;
       const response = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const rows = await response.json();
@@ -57,7 +77,7 @@
 
   document.addEventListener('change', event => {
     const select = event.target.closest?.('[data-psgc-level]');
-    if (select && CHILD[select.dataset.psgcLevel]) loadChildren(select);
+    if (select && ['region', 'municipality'].includes(select.dataset.psgcLevel)) loadChildren(select);
   });
 
   // Used by billing-address.js when the form is reset for a new address.
