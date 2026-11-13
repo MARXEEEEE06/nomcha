@@ -23,7 +23,31 @@ $sslCa = trim(nomcha_env('DB_SSL_CA', ''));
 // PDO expects a certificate file path. Allow deployment platforms to provide
 // the Aiven CA certificate itself as an environment variable instead.
 if (str_contains($sslCa, '-----BEGIN CERTIFICATE-----')) {
-    $sslCa = str_replace('\\n', "\n", $sslCa);
+    $sslCa = str_replace(['\\r\\n', '\\n', '\\r'], "\n", $sslCa);
+    preg_match_all(
+        '/-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----/s',
+        $sslCa,
+        $certificateMatches
+    );
+    if (empty($certificateMatches[1])) {
+        http_response_code(500);
+        error_log('Nomcha DB connection failed: DB_SSL_CA does not contain a complete PEM certificate.');
+        exit('Database connection failed.');
+    }
+
+    $normalizedCertificates = '';
+    foreach ($certificateMatches[1] as $certificateBody) {
+        $certificateBody = preg_replace('/\s+/', '', $certificateBody);
+        if ($certificateBody === '' || base64_decode($certificateBody, true) === false) {
+            http_response_code(500);
+            error_log('Nomcha DB connection failed: DB_SSL_CA contains invalid PEM data.');
+            exit('Database connection failed.');
+        }
+        $normalizedCertificates .= "-----BEGIN CERTIFICATE-----\n"
+            . chunk_split($certificateBody, 64, "\n")
+            . "-----END CERTIFICATE-----\n";
+    }
+    $sslCa = $normalizedCertificates;
     $caPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
         . DIRECTORY_SEPARATOR . 'nomcha-aiven-ca-' . hash('sha256', $sslCa) . '.pem';
     if (!is_file($caPath)) {
