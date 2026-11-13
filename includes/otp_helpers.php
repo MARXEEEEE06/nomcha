@@ -45,6 +45,12 @@ function create_otp_challenge(PDO $pdo, string $email, string $purpose, ?int $us
     $pdo->prepare('INSERT INTO auth_otp_challenges (email_addr, purpose, user_id, otp_hash, registration_data, expires_at) VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . OTP_TTL_MINUTES . ' MINUTE))')
         ->execute([$email, $purpose, $userId, $hash, $data]);
     $id = (int)$pdo->lastInsertId();
+    $storedPurpose = $pdo->prepare('SELECT purpose FROM auth_otp_challenges WHERE challenge_id = ?');
+    $storedPurpose->execute([$id]);
+    if ($storedPurpose->fetchColumn() !== $purpose) {
+        $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ?')->execute([$id]);
+        throw new RuntimeException('Apply the latest auth OTP migration before sending this verification code.');
+    }
     auth_security_log($pdo, 'otp_request', $userId, $purpose, 'created', ['challenge_id' => $id]);
 
     try {
