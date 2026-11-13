@@ -1,19 +1,7 @@
 <?php
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
-
-if (!empty($_SESSION['user_id'])) {
-	require_customer($pdo);
-} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	$loginRedirect = 'order.php';
-	$fulfillment = (string)($_POST['fulfillment'] ?? $_GET['fulfillment'] ?? '');
-	$pickupLocation = trim((string)($_POST['pickup_location'] ?? $_GET['pickup_location'] ?? ''));
-	if ($fulfillment === 'pickup' && $pickupLocation !== '' && mb_strlen($pickupLocation) <= 255) {
-		$loginRedirect .= '?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
-	}
-	header('Location: login.php?redirect=' . rawurlencode($loginRedirect));
-	exit;
-}
+require_customer($pdo);
 
 $pageTitle = 'Order Online';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
@@ -46,6 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['fulfillment'] ?? '') === 'p
 }
 $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
+$claimedVouchersQuery = $pdo->prepare("SELECT c.claim_id,p.name,p.discount_type,p.discount_value FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.user_id=? AND c.redeemed_at IS NULL AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at ORDER BY c.claimed_at DESC");
+$claimedVouchersQuery->execute([(int)$_SESSION['user_id']]);
+$claimedVouchers = $claimedVouchersQuery->fetchAll();
 
 function orderItemOptions(string $name): array {
 	if (in_array($name, ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
@@ -350,18 +341,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			}
 		}
 		$deliveryFee = $form['fulfillment'] === 'pickup' ? 0.00 : round(30 + ceil($deliveryDistanceKm) * 10, 2);
+		if (!$errors && $form['fulfillment'] === 'delivery' && $subtotal >= 400) {
+			$accountAge = $pdo->prepare('SELECT created_at FROM user_credentials WHERE user_id = ?');
+			$accountAge->execute([(int)$_SESSION['user_id']]);
+			$createdAt = $accountAge->fetchColumn();
+			if ($createdAt && strtotime((string)$createdAt) > strtotime('-1 month')) $deliveryFee = 0.00;
+		}
+		if (!$errors && $subtotal > 4999) $errors[] = 'Online orders are limited to ₱4,999. Orders of ₱5,000 or more must be placed through your nearest Nomcha branch.';
+		$promo = null; $claimId = (int)($_POST['voucher_claim_id'] ?? 0); $promoCode = strtoupper(trim((string)($_POST['promo_code'] ?? ''))); $discountAmount = 0.00;
+		if (!$errors && ($claimId > 0 || $promoCode !== '')) {
+			if ($claimId > 0 && $promoCode !== '') $errors[] = 'Choose either a voucher or a promo code.';
+			else {
+				$promoQuery = $claimId > 0
+					? $pdo->prepare("SELECT p.* FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.claim_id=? AND c.user_id=? AND c.redeemed_at IS NULL AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at")
+					: $pdo->prepare("SELECT * FROM promotions WHERE promo_code=? AND is_platform_voucher=0 AND status='active' AND NOW() BETWEEN starts_at AND ends_at");
+				$claimId > 0 ? $promoQuery->execute([$claimId,(int)$_SESSION['user_id']]) : $promoQuery->execute([$promoCode]);
+				$promo = $promoQuery->fetch() ?: null;
+				if (!$promo) $errors[] = 'That voucher or promo code is invalid, expired, or already used.';
+				elseif ((int)($promo['usage_limit'] ?? 0) > 0 && (int)$promo['usage_count'] >= (int)$promo['usage_limit']) $errors[] = 'This offer has reached its redemption limit.';
+				elseif ((float)$subtotal < (float)$promo['minimum_spend']) $errors[] = 'This offer requires a minimum spend of ₱' . number_format((float)$promo['minimum_spend'],2) . '.';
+				elseif (!in_array((string)$promo['channel'],['','all',$form['payment_method']],true)) $errors[] = 'This offer is not available with the selected payment method.';
+				else {
+					$eligibleQuery=$pdo->prepare('SELECT item_id FROM promotion_eligible_items WHERE promo_id=?');$eligibleQuery->execute([(int)$promo['promo_id']]);$eligibleIds=array_map('intval',$eligibleQuery->fetchAll(PDO::FETCH_COLUMN));
+					$eligibleSubtotal=0.0;
+					foreach($orderLines as $line) if($promo['eligibility_scope']==='all'||in_array((int)$line['item_id'],$eligibleIds,true)) $eligibleSubtotal+=$line['line_total'];
+					if($eligibleSubtotal<=0) $errors[]='Your basket does not contain an eligible product for this offer.';
+					else if($promo['discount_type']==='percent') $discountAmount=min($eligibleSubtotal,$eligibleSubtotal*(float)$promo['discount_value']/100);
+					else if($promo['discount_type']==='fixed') $discountAmount=min($eligibleSubtotal,(float)$promo['discount_value']);
+					else {
+						$freeUnit=0.0; foreach($orderLines as $line) if(($promo['eligibility_scope']==='all'||in_array((int)$line['item_id'],$eligibleIds,true))&&$line['unit_price']>$freeUnit)$freeUnit=(float)$line['unit_price'];
+						$discountAmount=min($eligibleSubtotal,$freeUnit,(float)$promo['discount_value']>0?(float)$promo['discount_value']:$freeUnit);
+					}
+					if($promo['discount_type']==='percent'&&$promo['max_discount']!==null) $discountAmount=min($discountAmount,(float)$promo['max_discount']);
+					$discountAmount=round($discountAmount,2);
+				}
+			}
+		}
 		if (!$errors && $orderLines) {
 				try {
 						$pdo->beginTransaction();
+						if($promo){
+							$locked=$pdo->prepare("SELECT promo_id,usage_limit,usage_count FROM promotions WHERE promo_id=? AND status='active' AND NOW() BETWEEN starts_at AND ends_at FOR UPDATE");$locked->execute([(int)$promo['promo_id']]);$lockedPromo=$locked->fetch();
+							if(!$lockedPromo||($lockedPromo['usage_limit']!==null&&(int)$lockedPromo['usage_count']>=(int)$lockedPromo['usage_limit']))throw new RuntimeException('Offer is no longer available.');
+							if($claimId){$claimLock=$pdo->prepare('SELECT redeemed_at FROM promotion_claims WHERE claim_id=? AND user_id=? FOR UPDATE');$claimLock->execute([$claimId,(int)$_SESSION['user_id']]);$claimRow=$claimLock->fetch();if(!$claimRow||$claimRow['redeemed_at']!==null)throw new RuntimeException('Voucher has already been used.');}
+						}
 						$userId = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 						$orderNumber = 'NC' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
-						$total = round($subtotal + $deliveryFee, 2);
+						$total = round(max(0,$subtotal + $deliveryFee - $discountAmount), 2);
 						$pdo->prepare(
 								'INSERT INTO customer_orders
 								 (order_number, user_id, fulfillment, branch_id, customer_name, phone, delivery_address,
 									delivery_instructions, pickup_location, scheduled_for, payment_method,
-									subtotal, delivery_fee, total)
-								 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+									 subtotal, promo_id, discount_amount, delivery_fee, total)
+									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 						)->execute([
 								$orderNumber,
 								$userId,
@@ -375,6 +407,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								$scheduledFor,
 								$form['payment_method'],
 								$subtotal,
+								$promo ? (int)$promo['promo_id'] : null,
+								$discountAmount,
 								$deliveryFee,
 								$total,
 						]);
@@ -395,12 +429,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 										$line['line_total'],
 								]);
 						}
+						if($promo){
+							$pdo->prepare('INSERT INTO promotion_redemptions(promo_id,order_id,user_id,claim_id,code_used,order_subtotal,discount_amount) VALUES(?,?,?,?,?,?,?)')->execute([(int)$promo['promo_id'],$orderId,(int)$_SESSION['user_id'],$claimId?:null,$promoCode?:null,$subtotal,$discountAmount]);
+							$pdo->prepare('UPDATE promotions SET usage_count=usage_count+1 WHERE promo_id=?')->execute([(int)$promo['promo_id']]);
+							if($claimId)$pdo->prepare('UPDATE promotion_claims SET redeemed_at=NOW() WHERE claim_id=? AND user_id=?')->execute([$claimId,(int)$_SESSION['user_id']]);
+						}
 						$pdo->commit();
 						$_SESSION['order_confirmation'] = [
 								'number' => $orderNumber,
 								'subtotal' => $subtotal,
 								'delivery_fee' => $deliveryFee,
 								'total' => $total,
+							'discount' => $discountAmount,
 								'fulfillment' => $form['fulfillment'],
 						];
 						header('Location: order.php?placed=1');
@@ -508,30 +548,8 @@ require 'includes/header.php';
 ?>
 
 <main class="order-page" data-order-confirmed="<?= $orderConfirmation ? 'yes' : 'no' ?>" data-ph-now="<?= e($scheduleNow->format('Y-m-d\TH:i')) ?>">
-	<div class="order-toast-container" id="order-toast-container" aria-live="assertive" aria-atomic="false">
-		<?php if ($errors): ?>
-			<div class="order-toast order-toast-danger" role="alert">
-				<i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
-				<div><strong>Please review your order</strong><ul><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div>
-				<button type="button" class="order-toast-close" data-order-toast-close aria-label="Dismiss">&times;</button>
-			</div>
-		<?php endif; ?>
-	</div>
-	<section class="order-heading-band">
-		<div class="container py-4 py-lg-5">
-			<?php if (!empty($_SESSION['flash_success'])): ?><div class="alert alert-success"><?= e((string)$_SESSION['flash_success']) ?></div><?php unset($_SESSION['flash_success']); endif; ?>
-			<img class="" src="https://www.bonchon.com.ph/storage/cms_images/lj8oc25rqsJim7X4z8o1WH5ZEJpumFQTQ625BsRa" alt="BBQ Sizzlers Meal" >
-			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
-				<div>
-					<p class="order-eyebrow mb-2">Nomcha, made to order</p>
-					<h1 class="mb-1">Order online</h1>
-					<p class="mb-0">Choose your favorites, then select delivery or pickup.</p>
-				</div>
-				<a class="order-back-link" href="order.php?view=orders"><i class="bi bi-receipt me-2" aria-hidden="true"></i>My orders</a>
-			</div>
-		</div>
-	</section>
-
+	<?php render_toasts($errors ? [['kind' => 'danger', 'title' => 'Please review your order', 'items' => $errors]] : []); ?>
+	<section class="order-heading-band"></section>
 	<?php if ($orderConfirmation): ?>
 		<section class="container pt-4" aria-live="polite">
 			<div class="order-success">
@@ -539,7 +557,7 @@ require 'includes/header.php';
 				<div>
 					<h2 class="h4 mb-1">Order request received</h2>
 					<p class="mb-1">Reference <strong><?= e($orderConfirmation['number']) ?></strong>. Nomcha will contact you to confirm availability<?= $orderConfirmation['fulfillment'] === 'delivery' ? ' and delivery coverage' : ' and pickup timing' ?>.</p>
-					<p class="mb-0">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Estimated delivery: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
+					<p class="mb-0">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if(($orderConfirmation['discount']??0)>0):?> · Voucher discount: <strong>−₱<?=number_format((float)$orderConfirmation['discount'],2)?></strong><?php endif;?><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Estimated delivery: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
 				</div>
 			</div>
 		</section>
@@ -616,6 +634,16 @@ require 'includes/header.php';
 				</aside>
 
 				<section class="col-lg-6 order-catalog" aria-label="Menu items">
+					<div class="container py-4 py-lg-5">
+			<?php if (!empty($_SESSION['flash_success'])): ?><div class="alert alert-success"><?= e((string)$_SESSION['flash_success']) ?></div><?php unset($_SESSION['flash_success']); endif; ?>
+			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+				<div>
+					<p class="order-eyebrow mb-2">Nomcha, made to order</p>
+					<h1 class="mb-1">Order online</h1>
+					<p class="mb-0">Choose your favorites, then select delivery or pickup.</p>
+				</div>
+			</div>
+		</div>
 					<?php foreach ($categories as $category): ?>
 						<?php $rootItems = $itemsByCategory[$category['category_id']] ?? []; ?>
 						<section class="order-menu-section" id="order-category-<?= (int)$category['category_id'] ?>">
@@ -691,6 +719,7 @@ require 'includes/header.php';
 					<form id="checkout-form" class="order-checkout" method="post" action="order.php" novalidate>
 						<input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
 						<input type="hidden" name="cart_json" id="cart-json" value="[]">
+						<a class="order-back-link" href="order.php?view=orders"><i class="bi bi-receipt me-2" aria-hidden="true"></i>My orders</a>
 						<div class="order-checkout-heading">
 							<h2>Your basket</h2>
 							<span id="cart-count" class="order-count">0</span>
@@ -702,6 +731,13 @@ require 'includes/header.php';
 							<div><span>Item subtotal</span><strong id="cart-subtotal">₱0.00</strong></div>
 							<div class="order-fee-row"><span>Delivery fee</span><span id="delivery-fee-label">Choose address and branch</span></div>
 						</div>
+						<p class="order-helper">New accounts less than one month old get free delivery when item subtotal is at least ₱400. It is applied automatically at checkout.</p>
+
+						<fieldset class="order-form-section">
+							<legend>Voucher or promo code</legend>
+							<?php if($claimedVouchers):?><label class="form-label" for="voucher-claim-id">My claimed vouchers</label><select class="form-select mb-2" id="voucher-claim-id" name="voucher_claim_id"><option value="">No voucher</option><?php foreach($claimedVouchers as $voucher):?><option value="<?=(int)$voucher['claim_id']?>"><?=e($voucher['name'])?> · <?=e($voucher['discount_type']==='percent'?$voucher['discount_value'].'% off':($voucher['discount_type']==='fixed'?'₱'.number_format((float)$voucher['discount_value'],2).' off':'Free item'))?></option><?php endforeach;?></select><?php endif;?>
+							<label class="form-label" for="promo-code">Promo code</label><input class="form-control" id="promo-code" name="promo_code" maxlength="60" placeholder="Enter promo code"><p class="order-helper mb-0">Only one voucher or promo code can be used per order.</p>
+						</fieldset>
 
 						<fieldset class="order-form-section">
 							<legend>Receive your order</legend>

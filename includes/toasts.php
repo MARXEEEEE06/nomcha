@@ -1,11 +1,21 @@
 <?php
+/** Shared Nomcha toast renderer. Messages may include kind, title, text, and items. */
 function render_toasts(array $messages): void {
-    $messages = array_values(array_filter($messages, static fn($message) => is_array($message) && !empty($message['text'])));
+    $messages = array_values(array_filter($messages, static fn($message) => is_array($message) && (!empty($message['text']) || !empty($message['items']))));
     if (!$messages) return;
-    echo '<div class="toast-container position-fixed top-0 end-0 p-3 nomcha-toast-stack" aria-live="polite" aria-atomic="true">';
+    echo '<div class="order-toast-container" aria-live="assertive" aria-atomic="false">';
     foreach ($messages as $message) {
-        $kind = in_array($message['kind'] ?? '', ['success','danger','warning','info'], true) ? $message['kind'] : 'info';
-        echo '<div class="toast align-items-center text-bg-' . $kind . ' border-0 mb-2" role="status" data-bs-delay="6500"><div class="d-flex"><div class="toast-body">' . e((string)$message['text']) . '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div></div>';
+        $kind = in_array($message['kind'] ?? '', ['danger', 'warning', 'success'], true) ? $message['kind'] : 'warning';
+        $icon = ['danger' => 'bi-exclamation-circle-fill', 'warning' => 'bi-exclamation-triangle-fill', 'success' => 'bi-check-circle-fill'][$kind];
+        echo '<div class="order-toast order-toast-' . $kind . '" role="alert"><i class="bi ' . $icon . '" aria-hidden="true"></i><div>';
+        if (!empty($message['title'])) echo '<strong>' . e((string)$message['title']) . '</strong>';
+        if (!empty($message['text'])) echo (!empty($message['title']) ? ' ' : '') . e((string)$message['text']);
+        if (!empty($message['items']) && is_array($message['items'])) {
+            echo '<ul>';
+            foreach ($message['items'] as $item) echo '<li>' . e((string)$item) . '</li>';
+            echo '</ul>';
+        }
+        echo '</div><button type="button" class="order-toast-close" data-order-toast-close aria-label="Dismiss">&times;</button></div>';
     }
-    echo '</div><script>document.addEventListener("DOMContentLoaded",()=>document.querySelectorAll(".nomcha-toast-stack .toast").forEach(node=>new bootstrap.Toast(node).show()));</script>';
+    echo '</div><script>document.addEventListener("click",e=>{const b=e.target.closest("[data-order-toast-close]");if(b)b.closest(".order-toast")?.remove()});</script>';
 }

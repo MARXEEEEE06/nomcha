@@ -236,7 +236,7 @@ html { scroll-behavior: smooth; }
 .btn.pw-toggle:hover { background: var(--nc-cream); color: var(--nc-red); }
 
 /* Ordering */
-.order-heading-band { background: #fff; border-bottom: 1px solid rgba(74,52,40,.12); }
+.order-heading-band { background: #fff; background-image: url('https://images.tablevibestaticassets.co/bmc94kso5d5726lzllewksv2vop6'); background-size: percentage; background-repeat: no-repeat; background-position: center; border-bottom: 1px solid rgba(74,52,40,.12); padding: 15rem 0; }
 .order-heading-band h1 { color: var(--nc-red); font-size: clamp(2rem, 3vw, 2.8rem); }
 .order-heading-band p:not(.order-eyebrow) { color: #62574f; }
 .order-eyebrow { color: var(--nc-orange); font-size: .75rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }

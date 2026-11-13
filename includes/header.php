@@ -86,3 +86,8 @@ function navActive(string $file, string $current): string {
     </div>
   </div>
 </nav>
+<?php
+require_once __DIR__ . '/toasts.php';
+render_toasts($_SESSION['flash_toasts'] ?? []);
+unset($_SESSION['flash_toasts']);
+?>

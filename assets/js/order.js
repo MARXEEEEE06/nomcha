@@ -51,7 +51,11 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[character]));
 
-  const toastContainer = document.getElementById('order-toast-container');
+  const toastContainer = document.querySelector('.order-toast-container');
+  const voucherClaimSelect = document.getElementById('voucher-claim-id');
+  const promoCodeInput = document.getElementById('promo-code');
+  voucherClaimSelect?.addEventListener('change', () => { if (voucherClaimSelect.value && promoCodeInput) promoCodeInput.value = ''; });
+  promoCodeInput?.addEventListener('input', () => { if (promoCodeInput.value.trim() && voucherClaimSelect) voucherClaimSelect.value = ''; });
   const showToast = (message, tone = 'danger') => {
     if (!toastContainer) return;
     const toast = document.createElement('div');

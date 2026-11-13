@@ -4,7 +4,7 @@
     <div class="row g-5 align-items-center">
       <div class="col-lg-6">
         <h3 class="footer-heading mb-4">Get fresh and hot news straight to your inbox</h3>
-        <form class="footer-subscribe d-flex gap-2" action="#" method="post" onsubmit="return false;"><input type="email" class="form-control border-0" placeholder="Email Address" aria-label="Email Address" required><button type="submit" class="btn btn-login rounded-0 px-4">Subscribe</button></form>
+        <form class="footer-subscribe d-flex gap-2" action="subscribe.php" method="post"><input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>"><input type="email" name="email" class="form-control border-0" placeholder="Email Address" aria-label="Email Address" autocomplete="email" maxlength="255" required><label class="visually-hidden" for="subscription-consent">Email me Nomcha promotions, vouchers, and menu news</label><input class="form-check-input align-self-center" type="checkbox" id="subscription-consent" name="consent" value="1" required><button type="submit" class="btn btn-login rounded-0 px-4">Subscribe</button></form>
       </div>
       <div class="col-lg-6"><div class="row footer-links">
         <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="menu.php">Menu</a></li><li class="mb-3"><a href="branches.php">Branches</a></li><li><a href="#">Franchise</a></li></ul>

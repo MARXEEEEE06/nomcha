@@ -2,6 +2,7 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 require 'includes/otp_helpers.php';
+require_once 'includes/make_mailer.php';
 require 'includes/psgc_helpers.php';
 
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
@@ -69,6 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare('INSERT INTO user_addresses (user_id, recipient_name, mobile_no, street_address, region_code, province, province_code, municipality, municipality_code, barangay, barangay_code, zip_code, latitude, longitude, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
                         ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['region_code'] ?? null, $data['province'], $data['province_code'] ?? null, $data['municipality'], $data['municipality_code'] ?? null, $data['barangay'], $data['barangay_code'] ?? null, $data['zip_code'], $data['latitude'], $data['longitude']]);
                     $pdo->commit();
+                    try {
+                        send_customer_welcome_email($email, trim($data['first_name'] . ' ' . $data['last_name']));
+                    } catch (Throwable $mailError) {
+                        error_log('Nomcha customer welcome email failed: ' . $mailError->getMessage());
+                    }
                     $pdo->prepare('UPDATE auth_otp_challenges SET registration_data = NULL WHERE challenge_id = ?')->execute([$challengeId]);
                     auth_security_log($pdo, 'registration', $userId, 'registration', 'completed');
                     unset($_SESSION['registration_challenge_id'], $_SESSION['registration_email'], $_SESSION['registration_sent_at']);

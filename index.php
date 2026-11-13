@@ -2,6 +2,7 @@
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
 $homeRole = current_role($pdo);
+if ($homeRole === 'admin') { header('Location: admin.php'); exit; }
 if (in_array($homeRole, ['staff', 'admin'], true)) {
     $pageTitle = 'Management';
     require 'includes/header.php';

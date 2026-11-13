@@ -20,7 +20,7 @@ unset(
 );
 
 $loginWelcome = !empty($_SESSION['user_id']) && ($_GET['auth_success'] ?? '') === '1';
-if (!empty($_SESSION['user_id']) && !$loginWelcome) { header('Location: index.php'); exit; }
+if (!empty($_SESSION['user_id']) && !$loginWelcome) { header('Location: ' . (current_role($pdo) === 'admin' ? 'admin.php' : 'index.php')); exit; }
 
 $redirectCandidate = (string)($_POST['redirect'] ?? $_GET['redirect'] ?? '');
 $redirectTo = $redirectCandidate === 'order.php' ? 'order.php' : 'index.php';
@@ -42,6 +42,7 @@ $password = '';
 $success = $_SESSION['flash_success'] ?? null;
 unset($_SESSION['flash_success']);
 $loginDestination = $loginWelcome ? (string)($_SESSION['login_destination'] ?? 'index.php') : '';
+if ($loginWelcome && current_role($pdo) === 'admin') $loginDestination = 'admin.php';
 if ($loginWelcome) unset($_SESSION['login_destination']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
