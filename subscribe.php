@@ -12,6 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
         if (strlen($email) > 255 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error = 'Enter a valid email address.';
+        } elseif (email_owned_by_another_account($pdo, $email)) {
+            $error = 'That email address belongs to another account. Use your own email address.';
         } else {
             $token = bin2hex(random_bytes(32));
             $hash = hash('sha256', $token);

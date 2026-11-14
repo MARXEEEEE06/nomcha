@@ -249,6 +249,28 @@ function send_notification_email(string $to,string $subject,string $text,string 
     if($response===false||!preg_match('/\s2\d\d\s/',$status))throw new RuntimeException('Notification could not be delivered through Make.');return true;
 }
 
+function send_application_status_email(string $to,string $applicantName,string $position,string $status): bool {
+    $status = strtolower($status);
+    if (!in_array($status, ['hired','rejected','withdrawn'], true)) throw new InvalidArgumentException('Unsupported application status email.');
+    $config=nomcha_config();$webhook=trim((string)($config['make_webhook_url']??''));
+    if($webhook===''||!filter_var($webhook,FILTER_VALIDATE_URL))throw new RuntimeException('Make webhook is not configured.');
+    $fromEmail=(string)($config['mail_from_email']??'no-reply@example.com');$fromName=(string)($config['mail_from_name']??'Nomcha');
+    $subject=match($status){'hired'=>'Update on your Nomcha application','rejected'=>'Update on your Nomcha application',default=>'Update on your Nomcha application'};
+    $text=match($status){
+        'hired'=>"Hello {$applicantName},\n\nWe are pleased to let you know that you have been hired for {$position}. Our team will contact you with the next steps.\n\nNomcha",
+        'rejected'=>"Hello {$applicantName},\n\nThank you for applying for {$position}. We will not be moving forward with your application at this time.\n\nNomcha",
+        default=>"Hello {$applicantName},\n\nYour application for {$position} has been marked as withdrawn. If this was unexpected, please contact our team.\n\nNomcha",
+    };
+    $safeName=htmlspecialchars($applicantName,ENT_QUOTES,'UTF-8');$safePosition=htmlspecialchars($position,ENT_QUOTES,'UTF-8');
+    $html='<p>Hello '.$safeName.',</p><p>'.match($status){'hired'=>'We are pleased to let you know that you have been hired for '.$safePosition.'. Our team will contact you with the next steps.','rejected'=>'Thank you for applying for '.$safePosition.'. We will not be moving forward with your application at this time.',default=>'Your application for '.$safePosition.' has been marked as withdrawn. If this was unexpected, please contact our team.'}.'</p><p>Nomcha</p>';
+    $payload=json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>$status,'route'=>'notification'],JSON_UNESCAPED_SLASHES);
+    if($payload===false)throw new RuntimeException('Could not prepare the application status email.');
+    $headers="Content-Type: application/json\r\n";$token=trim((string)($config['make_webhook_token']??''));if($token!=='')$headers.='x-make-apikey: '.$token."\r\n";
+    $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>$payload,'timeout'=>10,'ignore_errors'=>true]]);$response=@file_get_contents($webhook,false,$ctx);$statusLine=$http_response_header[0]??'';
+    if($response===false||!preg_match('/\s2\d\d\s/',$statusLine))throw new RuntimeException('Application status email could not be delivered through Make.');
+    return true;
+}
+
 function notify_nomcha_users(string $purpose,string $subject,string $message,string $path): void {
     global $pdo;
     $users=$pdo->query("SELECT s.email_addr, i.first_name FROM email_subscriptions s LEFT JOIN user_credentials c ON LOWER(c.email_addr)=s.email_addr AND c.is_active=1 AND c.role='customer' LEFT JOIN user_info i ON i.user_id=c.user_id WHERE s.unsubscribed_at IS NULL")->fetchAll();

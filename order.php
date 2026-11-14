@@ -75,10 +75,22 @@ function orderItemOptions(string $name): array {
 	return $groups;
 }
 
-function isOrderCustomizationItem(array $item): bool {
-	// These rack entries are flavor choices for the Chikin Rack, not separate products.
-	return (int)($item['category_id'] ?? 0) === 1
-		&& !preg_match('/^[0-9]+pc Chikin Rack Fanverse Meal$/', (string)($item['name'] ?? ''));
+function resolveOrderItemOptions(PDO $pdo, ?string $savedOptions, string $name): array {
+	$groups = json_decode((string)$savedOptions, true);
+	if (!is_array($groups)) $groups = orderItemOptions($name);
+	$available = $pdo->prepare("SELECT name, price FROM menu_items WHERE name=? AND is_available=1 AND availability_scope IN ('option_only','item_and_option') AND (publish_at IS NULL OR publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR)) LIMIT 1");
+	foreach ($groups as &$group) {
+		$choices = [];
+		foreach (($group['choices'] ?? []) as $choice) {
+			$choiceName = is_array($choice) ? (string)($choice['name'] ?? '') : (string)$choice;
+			if ($choiceName === '') continue;
+			$available->execute([$choiceName]);
+			if ($row = $available->fetch()) $choices[] = ['name'=>$row['name'], 'priceCents'=>(int)round((float)($row['price'] ?? 0) * 100)];
+		}
+		$group['choices'] = $choices;
+	}
+	unset($group);
+	return $groups;
 }
 
 function orderAddressLabel(array $address): string {
@@ -184,6 +196,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						$scheduledFor = $scheduledDate->format('Y-m-d H:i:s');
 				}
 		}
+		if ($form['fulfillment'] === 'delivery' && $scheduledFor === null && $scheduleNow->format('H:i') > '23:30') {
+			$errors[] = 'Online delivery is unavailable for today. Please choose pickup or try again tomorrow.';
+		}
 
 		$cart = json_decode($_POST['cart_json'] ?? '[]', true);
 		if (!is_array($cart) || !$cart || count($cart) > 40) {
@@ -211,8 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 						$options = [];
 						$addOnTotal = 0.0;
-						$optionConfig = json_decode((string)($item['customizations_json'] ?? ''), true);
-						if (!is_array($optionConfig)) $optionConfig = orderItemOptions($item['name']);
+						$optionConfig = resolveOrderItemOptions($pdo, $item['customizations_json'] ?? null, (string)$item['name']);
 						$submittedOptions = is_array($entry['options'] ?? null) ? $entry['options'] : [];
 						$specialRequestValue = $submittedOptions['specialRequest'] ?? '';
 						if (!is_string($specialRequestValue) || mb_strlen($specialRequestValue) > 500) {
@@ -396,8 +410,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								'INSERT INTO customer_orders
 								 (order_number, user_id, fulfillment, branch_id, customer_name, phone, delivery_address,
 									delivery_instructions, pickup_location, scheduled_for, payment_method,
-									subtotal, promo_id, discount_amount, delivery_fee, delivery_distance_km, total)
-									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+									subtotal, promo_id, promo_name_snapshot, discount_amount, delivery_fee, delivery_distance_km, total)
+									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 						)->execute([
 								$orderNumber,
 								$userId,
@@ -412,6 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								$form['payment_method'],
 								$subtotal,
 								$promo ? (int)$promo['promo_id'] : null,
+								$promo ? (string)$promo['name'] : null,
 								$discountAmount,
 								$deliveryFee,
 								$form['fulfillment'] === 'delivery' ? round($deliveryDistanceKm, 2) : null,
@@ -435,7 +450,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								]);
 						}
 						if($promo){
-							$pdo->prepare('INSERT INTO promotion_redemptions(promo_id,order_id,user_id,claim_id,code_used,order_subtotal,discount_amount) VALUES(?,?,?,?,?,?,?)')->execute([(int)$promo['promo_id'],$orderId,(int)$_SESSION['user_id'],$claimId?:null,$promoCode?:null,$subtotal,$discountAmount]);
+							$termsSnapshot = json_encode(['discount_type'=>$promo['discount_type'],'discount_value'=>(float)$promo['discount_value'],'max_discount'=>$promo['max_discount']===null?null:(float)$promo['max_discount'],'minimum_spend'=>(float)$promo['minimum_spend'],'eligibility_scope'=>$promo['eligibility_scope'],'channel'=>$promo['channel'],'starts_at'=>$promo['starts_at'],'ends_at'=>$promo['ends_at']], JSON_UNESCAPED_UNICODE);
+							$pdo->prepare('INSERT INTO promotion_redemptions(promo_id,order_id,user_id,claim_id,code_used,promo_name_snapshot,promo_terms_snapshot,order_subtotal,discount_amount) VALUES(?,?,?,?,?,?,?,?,?)')->execute([(int)$promo['promo_id'],$orderId,(int)$_SESSION['user_id'],$claimId?:null,$promoCode?:null,(string)$promo['name'],$termsSnapshot,$subtotal,$discountAmount]);
 							$pdo->prepare('UPDATE promotions SET usage_count=usage_count+1 WHERE promo_id=?')->execute([(int)$promo['promo_id']]);
 							if($claimId)$pdo->prepare('UPDATE promotion_claims SET redeemed_at=NOW() WHERE claim_id=? AND user_id=?')->execute([$claimId,(int)$_SESSION['user_id']]);
 						}
@@ -484,10 +500,8 @@ try {
 				}
 		}
 		foreach ($allItems as $item) {
-				if (isOrderCustomizationItem($item)) continue;
 				$itemsByCategory[$item['category_id']][] = $item;
-				$customOptions = json_decode((string)($item['customizations_json'] ?? ''), true);
-				if (!is_array($customOptions)) $customOptions = orderItemOptions($item['name']);
+				$customOptions = resolveOrderItemOptions($pdo, $item['customizations_json'] ?? null, (string)$item['name']);
 				$fanverse = null;
 				if (preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch)) {
 					$fanverse = [
@@ -536,8 +550,9 @@ $orderHistoryError = null;
 if ($viewOrders) {
 		try {
 				$historyQuery = $pdo->prepare(
-						"SELECT o.order_id, o.order_number, o.fulfillment, o.subtotal, o.delivery_fee, o.delivery_distance_km,
-						 o.discount_amount, o.total, o.status, o.payment_status, o.created_at, o.scheduled_for, p.name AS promo_name,
+						 "SELECT o.order_id, o.order_number, o.fulfillment, o.subtotal, o.delivery_fee, o.delivery_distance_km,
+						 o.discount_amount, o.total, o.status, o.payment_status, o.created_at, o.scheduled_for, COALESCE(o.promo_name_snapshot, p.name) AS promo_name,
+						 TIMESTAMPDIFF(SECOND, COALESCE((SELECT MAX(a.created_at) FROM staff_order_actions a WHERE a.order_id=o.order_id AND a.to_status='out_for_delivery'), o.created_at), NOW()) AS delivery_elapsed_seconds,
 						 (SELECT GROUP_CONCAT(CONCAT(i.quantity, ' x ', i.item_name) ORDER BY i.order_item_id SEPARATOR ' · ')
 						  FROM customer_order_items i WHERE i.order_id = o.order_id) AS item_summary
 						 FROM customer_orders o
@@ -551,6 +566,9 @@ if ($viewOrders) {
 				$orderHistoryError = 'Your order history is temporarily unavailable.';
 		}
 }
+$orderGroupCounts=['confirmation'=>0,'processing'=>0,'delivery'=>0,'history'=>0];
+foreach($myOrders as $orderRow){$group=match(strtolower((string)$orderRow['status'])){'pending'=>'confirmation','confirmed','preparing','ready'=>'processing','out_for_delivery'=>'delivery',default=>'history'};$orderGroupCounts[$group]++;}
+$activeOrderGroup='confirmation';foreach(array_keys($orderGroupCounts) as $groupKey){if($orderGroupCounts[$groupKey]>0){$activeOrderGroup=$groupKey;break;}}
 
 require 'includes/header.php';
 ?>
@@ -574,7 +592,7 @@ require 'includes/header.php';
 	<?php endif; ?>
 
 	<?php if ($viewOrders): ?>
-		<section class="container py-4 py-lg-5">
+		<section class="container py-4 py-lg-5" id="my-orders">
 			<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
 				<div><p class="order-eyebrow mb-2">Your account</p><h2 class="h3 mb-0">My orders</h2></div>
 				<a class="btn btn-order" href="order.php">Start an order</a>
@@ -584,15 +602,22 @@ require 'includes/header.php';
 			<?php elseif (!$myOrders): ?>
 				<div class="order-history-empty"><i class="bi bi-receipt" aria-hidden="true"></i><h3>No orders yet</h3><p>Your submitted orders will appear here.</p><a class="btn btn-order" href="order.php">Browse the menu</a></div>
 			<?php else: ?>
+				<ul class="nav nav-pills order-status-tabs mb-3" role="tablist" aria-label="Filter orders by status">
+					<li class="nav-item"><button class="nav-link <?=$activeOrderGroup==='confirmation'?'active':''?>" type="button" role="tab" aria-selected="<?=$activeOrderGroup==='confirmation'?'true':'false'?>" data-order-tab="confirmation">Confirmation <span class="badge text-bg-light"><?=$orderGroupCounts['confirmation']?></span></button></li>
+					<li class="nav-item"><button class="nav-link <?=$activeOrderGroup==='processing'?'active':''?>" type="button" role="tab" aria-selected="<?=$activeOrderGroup==='processing'?'true':'false'?>" data-order-tab="processing">Processing <span class="badge text-bg-light"><?=$orderGroupCounts['processing']?></span></button></li>
+					<li class="nav-item"><button class="nav-link <?=$activeOrderGroup==='delivery'?'active':''?>" type="button" role="tab" aria-selected="<?=$activeOrderGroup==='delivery'?'true':'false'?>" data-order-tab="delivery">Out for Delivery <span class="badge text-bg-light"><?=$orderGroupCounts['delivery']?></span></button></li>
+					<li class="nav-item"><button class="nav-link <?=$activeOrderGroup==='history'?'active':''?>" type="button" role="tab" aria-selected="<?=$activeOrderGroup==='history'?'true':'false'?>" data-order-tab="history">Past Orders <span class="badge text-bg-light"><?=$orderGroupCounts['history']?></span></button></li>
+				</ul>
 				<div class="order-history-list">
 					<?php foreach ($myOrders as $myOrder): ?>
-						<?php $itemSummary = str_replace(['BTS Bonless Chikin & Rosébokki', 'BTS Bonless Chikin', 'BTS Korean Fried Chicken'], ['NTS Bonless Chikin & Rosébokki', 'NTS Bonless Chikin', 'NTS Korean Fried Chicken'], (string)($myOrder['item_summary'] ?? '')); ?>
-						<article class="order-history-row">
+						<?php $itemSummary = str_replace(['BTS Bonless Chikin & Rosébokki', 'BTS Bonless Chikin', 'BTS Korean Fried Chicken'], ['NTS Bonless Chikin & Rosébokki', 'NTS Bonless Chikin', 'NTS Korean Fried Chicken'], (string)($myOrder['item_summary'] ?? '')); $rowGroup=match(strtolower((string)$myOrder['status'])){'pending'=>'confirmation','confirmed','preparing','ready'=>'processing','out_for_delivery'=>'delivery',default=>'history'}; ?>
+						<article class="order-history-row" data-order-group="<?=$rowGroup?>" <?=$rowGroup!==$activeOrderGroup?'hidden':''?>>
 							<div class="order-history-heading">
 								<div><strong><?= e($myOrder['order_number']) ?></strong><time datetime="<?= e(date(DATE_ATOM, strtotime($myOrder['created_at']))) ?>"><?= e(date('M j, Y · g:i A', strtotime($myOrder['created_at']))) ?></time></div>
-								<span class="order-history-status"><?= e(ucfirst($myOrder['status'])) ?></span>
-								<?php if ($myOrder['fulfillment'] === 'delivery'): ?><button type="button" class="order-track-button" data-track-delivery data-order-number="<?=e($myOrder['order_number'])?>" data-distance-km="<?=e($myOrder['delivery_distance_km'] === null ? '' : (string)$myOrder['delivery_distance_km'])?>" data-distance-known="<?=$myOrder['delivery_distance_km'] === null ? 'no' : 'yes'?>" aria-controls="delivery-tracking-banner">Track delivery</button><?php endif; ?>
-							<?php if (strtolower((string)$myOrder['status']) === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger" data-cancel-order="<?= (int)$myOrder['order_id'] ?>" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">Cancel order</button><?php endif; ?>
+								<span class="order-history-status"><?= e(ucwords(str_replace('_', ' ', (string)$myOrder['status']))) ?></span>
+								<div class="order-history-actions"><?php if ($myOrder['fulfillment'] === 'delivery' && strtolower((string)$myOrder['status']) === 'out_for_delivery'): ?><?php $distance=(float)($myOrder['delivery_distance_km']??5); $etaSeconds=max(60,(int)ceil(($distance>0?$distance:5)/25*3600/60)*60); $canConfirm=(int)$myOrder['delivery_elapsed_seconds'] >= $etaSeconds; ?><button type="button" class="order-track-button" data-track-delivery data-order-number="<?=e($myOrder['order_number'])?>" data-distance-km="<?=e($myOrder['delivery_distance_km'] === null ? '' : (string)$myOrder['delivery_distance_km'])?>" data-distance-known="<?=$myOrder['delivery_distance_km'] === null ? 'no' : 'yes'?>" data-delivery-elapsed="<?=(int)$myOrder['delivery_elapsed_seconds']?>" aria-controls="delivery-tracking-banner">Track delivery</button><?php endif; ?>
+								<?php if ($myOrder['fulfillment'] === 'delivery' && strtolower((string)$myOrder['status']) === 'out_for_delivery'): ?><form method="post" action="order-received.php" class="d-inline"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="order_id" value="<?=(int)$myOrder['order_id']?>"><button class="btn btn-sm btn-success" data-received-button data-remaining-seconds="<?=max(0,$etaSeconds-(int)$myOrder['delivery_elapsed_seconds'])?>" <?=$canConfirm?'':'disabled title="Confirm receipt when the delivery progress is complete."'?>>Received</button></form><?php endif; ?>
+							<?php if (strtolower((string)$myOrder['status']) === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger" data-cancel-order="<?= (int)$myOrder['order_id'] ?>" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">Cancel order</button><?php endif; ?></div>
 							</div>
 							<p class="order-history-items mb-2"><?= e($itemSummary ?: 'No item details') ?></p>
 							<div class="order-history-meta">

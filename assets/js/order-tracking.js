@@ -4,6 +4,21 @@
 
   const averageSpeedKmh = 25;
   let animationRun = 0;
+  const pageLoadedAt = Date.now();
+  const orderTabs = [...document.querySelectorAll('[data-order-tab]')];
+  const orderRows = [...document.querySelectorAll('[data-order-group]')];
+  orderTabs.forEach(tab => tab.addEventListener('click', () => {
+    const group = tab.dataset.orderTab;
+    orderTabs.forEach(item => { const active = item === tab; item.classList.toggle('active', active); item.setAttribute('aria-selected', String(active)); });
+    orderRows.forEach(row => { row.hidden = row.dataset.orderGroup !== group; });
+  }));
+  document.querySelectorAll('[data-received-button][disabled]').forEach(button => {
+    const remainingMs = Math.max(0, Number(button.dataset.remainingSeconds) || 0) * 1000;
+    window.setTimeout(() => {
+      button.disabled = false;
+      button.removeAttribute('title');
+    }, remainingMs);
+  });
   const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[character]));
@@ -15,6 +30,9 @@
     const etaMinutes = Math.max(1, Math.ceil((safeDistanceKm / averageSpeedKmh) * 60));
     const travelDurationMs = (safeDistanceKm / averageSpeedKmh) * 60 * 60 * 1000;
     const orderNumber = escapeHtml(button.dataset.orderNumber || 'your order');
+    const elapsedAtRender = Math.max(0, Number(button.dataset.deliveryElapsed) || 0) * 1000;
+    const elapsed = Math.min(travelDurationMs, elapsedAtRender + (Date.now() - pageLoadedAt));
+    const initialRatio = elapsed / travelDurationMs;
 
     banner.innerHTML = `
       <div class="delivery-tracking-heading">
@@ -27,7 +45,7 @@
         <span class="delivery-route-label">Branch</span>
         <div class="delivery-route-track">
           <span class="delivery-route-progress"></span>
-          <img class="delivery-rider" src="assets/images/delivery-motorcycle.svg" alt="">
+          <img class="delivery-rider" src="assets/images/scooter.svg" alt="Scooter">
         </div>
         <span class="delivery-route-label">Home</span>
       </div>`;
@@ -47,14 +65,14 @@
       if (!track || !rider || !progress) return;
 
       const endX = Math.max(0, track.clientWidth - rider.offsetWidth);
-      rider.style.left = '0px';
-      progress.style.width = '0%';
-      const progressEndX = Math.min(track.clientWidth, endX + rider.offsetWidth * 0.55);
-      rider.animate([{ left: '0px' }, { left: `${endX}px` }], {
-        duration: travelDurationMs, easing: 'linear', fill: 'forwards',
+      const progressEndX = track.clientWidth;
+      rider.style.left = `${endX * initialRatio}px`;
+      progress.style.width = `${progressEndX * initialRatio}px`;
+      rider.animate([{ left: `${endX * initialRatio}px` }, { left: `${endX}px` }], {
+        duration: travelDurationMs - elapsed, easing: 'linear', fill: 'forwards',
       });
-      progress.animate([{ width: '0px' }, { width: `${progressEndX}px` }], {
-        duration: travelDurationMs, easing: 'linear', fill: 'forwards',
+      progress.animate([{ width: `${progressEndX * initialRatio}px` }, { width: `${progressEndX}px` }], {
+        duration: travelDurationMs - elapsed, easing: 'linear', fill: 'forwards',
       });
     }));
     banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
