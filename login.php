@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user->execute([(int)$challenge['user_id'], (string)($_SESSION['login_otp_email'] ?? '')]);
                 $row = $user->fetch();
                 if (!$row) throw new RuntimeException('Account is unavailable.');
+                clear_login_failures($pdo, (string)($_SESSION['login_otp_email'] ?? ''));
                 session_regenerate_id(true);
                 unset($_SESSION['csrf']);
                 $_SESSION['user_id'] = (int)$row['user_id'];
@@ -136,7 +137,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
 
                     if ($row && (int)$row['is_active'] === 1 && account_password_matches($email, $hash, $password)) {
-                        clear_login_failures($pdo, $email);
+                        $attemptStmt = $pdo->prepare('SELECT attempt_count FROM login_attempts WHERE email_addr=?');
+                        $attemptStmt->execute([$email]);
+                        $failedAttempts = (int)$attemptStmt->fetchColumn();
+                        if ($failedAttempts < LOGIN_MAX_ATTEMPTS) {
+                            clear_login_failures($pdo, $email);
+                            session_regenerate_id(true);
+                            unset($_SESSION['csrf']);
+                            $_SESSION['user_id'] = (int)$row['user_id'];
+                            auth_security_log($pdo, 'login', (int)$row['user_id'], 'password', 'success');
+                            $_SESSION['first_name'] = $row['first_name'];
+                            $_SESSION['role'] = $row['role'];
+                            $_SESSION['login_destination'] = $redirectTo;
+                            header('Location: login.php?auth_success=1'); exit;
+                        }
                         try {
                             $challengeId = create_otp_challenge($pdo, $email, 'login', (int)$row['user_id']);
                             $_SESSION['login_otp_challenge_id'] = $challengeId;
