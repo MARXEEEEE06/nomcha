@@ -5,6 +5,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if (!csrf_check($_POST['csrf']??null)) $errors[]='Your session expired. Please try again.';
   $d=[]; foreach (['purpose','first_name','middle_name','last_name','position_applied','mobile_number','address','email'] as $k) $d[$k]=trim((string)($_POST[$k]??''));
   if (!$d['purpose'] || !$d['first_name'] || !$d['last_name'] || !$d['position_applied'] || !$d['mobile_number'] || !$d['address'] || !filter_var($d['email'],FILTER_VALIDATE_EMAIL)) $errors[]='Please complete all required fields with a valid email.';
+  if (!$errors && email_owned_by_another_account($pdo,$d['email'])) $errors[]='That email address belongs to another account. Use your own email address.';
   $resume=null;
   if (!empty($_FILES['resume']['name'])) {
     $f=$_FILES['resume']; $ext=strtolower(pathinfo($f['name'],PATHINFO_EXTENSION));

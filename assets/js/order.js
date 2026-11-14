@@ -157,6 +157,23 @@
     syncScheduleSummary();
   };
 
+  const orderPage = document.querySelector('.order-page');
+  let deliveryUnavailable = false;
+  if (orderPage) {
+    const [, clock = '00:00'] = orderPage.dataset.phNow.split('T');
+    if (clock > '23:30') {
+      deliveryUnavailable = true;
+      const deliveryButton = document.querySelector('[data-fulfillment-option="delivery"]');
+      deliveryButton?.setAttribute('aria-disabled', 'true');
+      deliveryButton?.classList.add('disabled');
+      const note = document.createElement('p');
+      note.className = 'alert alert-warning mt-2 mb-0';
+      note.textContent = 'Online delivery is unavailable right now. Choose pickup or come back tomorrow.';
+      document.querySelector('[data-delivery-fields]')?.prepend(note);
+      deliveryButton?.addEventListener('click', event => { event.stopImmediatePropagation(); showToast(note.textContent, 'warning'); }, true);
+    }
+  }
+
   const persistCart = () => {
     try {
       localStorage.setItem(cartKey, JSON.stringify(cart));
@@ -433,6 +450,10 @@
       syncScheduleSummary();
     });
   });
+  if (deliveryUnavailable) {
+    document.querySelector('[data-fulfillment-option="pickup"]')?.click();
+    showToast('Online delivery is unavailable right now. Pickup is available, or come back tomorrow.', 'warning');
+  }
 
   document.getElementById('schedule-picker-open')?.addEventListener('click', () => {
     renderScheduleOptions();

@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 const NAME_RE   = '/^[\p{L}][\p{L} .\'-]{0,99}$/u';
 const MOBILE_RE = '/^(09\d{9}|\+639\d{9})$/';
 const PASS_RE   = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/';
-const LOGIN_MAX_ATTEMPTS = 6;
+const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCK_MINUTES = 5;
 
 function e(?string $s): string {
@@ -85,6 +85,15 @@ function normalize_mobile(string $m): string {
 
 function valid_login_email(string $email): bool {
     return in_array($email, ['admin@admin', 'nomchaadmin@admin'], true) || (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+function email_owned_by_another_account(PDO $pdo, string $email): bool {
+    $userId = (int)($_SESSION['user_id'] ?? 0);
+    $stmt = $userId > 0
+        ? $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email_addr)=LOWER(?) AND user_id<>? LIMIT 1')
+        : $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email_addr)=LOWER(?) LIMIT 1');
+    $stmt->execute($userId > 0 ? [$email, $userId] : [$email]);
+    return (bool)$stmt->fetchColumn();
 }
 
 function login_is_locked(PDO $pdo, string $email): bool {
