@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 session_regenerate_id(true);
                 unset($_SESSION['csrf']);
                 $_SESSION['user_id'] = (int)$row['user_id'];
+                auth_security_log($pdo, 'login', (int)$row['user_id'], 'login', 'success');
                 $_SESSION['first_name'] = $row['first_name'];
                 $_SESSION['role'] = $row['role'];
                 $_SESSION['login_destination'] = $redirectTo;

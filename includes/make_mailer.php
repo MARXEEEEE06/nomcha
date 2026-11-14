@@ -229,7 +229,7 @@ function send_subscription_welcome_email(string $to, string $unsubscribeUrl): bo
     return true;
 }
 
-function send_notification_email(string $to,string $subject,string $text,string $purpose): bool {
+function send_notification_email(string $to,string $subject,string $text,string $purpose,?string $formattedHtml=null): bool {
     global $pdo;
     $config=nomcha_config();$webhook=trim((string)($config['make_webhook_url']??''));
     if($webhook===''||!filter_var($webhook,FILTER_VALIDATE_URL))throw new RuntimeException('Make webhook is not configured.');
@@ -240,7 +240,7 @@ function send_notification_email(string $to,string $subject,string $text,string 
     if ($hash === '') return false;
     $unsubscribeUrl=nomcha_absolute_url('unsubscribe.php?token=' . rawurlencode($hash));
     $text .= "\n\nTo stop receiving Nomcha email updates, unsubscribe here: {$unsubscribeUrl}";
-    $html=nl2br(htmlspecialchars($text,ENT_QUOTES,'UTF-8'));
+    $html=($formattedHtml!==null?$formattedHtml:nl2br(htmlspecialchars($text,ENT_QUOTES,'UTF-8')));
     $html .= '<p><a href="' . htmlspecialchars($unsubscribeUrl,ENT_QUOTES,'UTF-8') . '">Unsubscribe from Nomcha email updates</a></p>';
     $payload=json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'],JSON_UNESCAPED_SLASHES);
     if($payload===false)throw new RuntimeException('Could not prepare the notification email.');

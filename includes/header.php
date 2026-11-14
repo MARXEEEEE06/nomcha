@@ -25,6 +25,7 @@ function navActive(string $file, string $current): string {
   <?= $pageStyles ?? '' ?>
 </head>
 <body>
+<div class="page-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
 
 <nav class="navbar navbar-expand-xl navbar-nomcha sticky-top" data-bs-theme="dark">
   <div class="container">
@@ -37,8 +38,9 @@ function navActive(string $file, string $current): string {
         <ul class="navbar-nav me-auto mb-2 mb-xl-0">
             <?php if ($isManagementRole): ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
-            <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Management</a></li>
-            <li class="nav-item"><a class="nav-link<?= navActive('staff-orders.php', $current) ?>" href="staff-orders.php">Incoming orders</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('analytics.php', $current) ?>" href="analytics.php">Analytics</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('announcement.php', $current) ?>" href="announcement.php">Announcements</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('employees.php', $current) ?>" href="employees.php">Employees</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('team-inbox.php', $current) ?>" href="team-inbox.php">Team inbox</a></li>
@@ -51,7 +53,6 @@ function navActive(string $file, string $current): string {
             <li class="nav-item"><a class="nav-link<?= navActive('our-story.php', $current) ?>" href="our-story.php">Our Story</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('branches.php', $current) ?>" href="branches.php">Branches</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('promos.php', $current) ?>" href="promos.php">Promos</a></li>
-            <li class="nav-item"><a class="nav-link" href="#">Franchise</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('careers.php', $current) ?>" href="careers.php">Careers</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('contact.php', $current) ?>" href="contact.php">Contact Us</a></li>
             <?php endif; ?>
@@ -75,6 +76,10 @@ function navActive(string $file, string $current): string {
               <li><a class="dropdown-item" href="staff-orders.php"><i class="bi bi-receipt me-2"></i>Incoming orders</a></li>
               <li><a class="dropdown-item" href="menu-management.php"><i class="bi bi-card-list me-2"></i>Menu management</a></li>
               <li><a class="dropdown-item" href="team-inbox.php"><i class="bi bi-inbox me-2"></i>Team inbox</a></li>
+              <?php elseif (($_SESSION['role'] ?? '') === 'admin'): ?>
+              <li><a class="dropdown-item" href="admin.php"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a></li>
+              <li><a class="dropdown-item" href="analytics.php"><i class="bi bi-graph-up me-2"></i>Analytics</a></li>
+              <li><a class="dropdown-item" href="announcement.php"><i class="bi bi-megaphone me-2"></i>Announcements</a></li>
               <?php endif; ?>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>

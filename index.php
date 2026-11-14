@@ -17,12 +17,44 @@ $items = [];
 $dbError = null;
 try {
     $items = $pdo->query(
-        'SELECT item_id, name, description, price, image_url
-         FROM menu_items WHERE is_available = 1
-         ORDER BY item_id LIMIT 4'
+        "SELECT ranked.item_id,ranked.name,COALESCE(m.description,'') AS description,m.price,
+                IF(m.image_data IS NOT NULL,CONCAT('menu-image.php?id=',m.item_id),m.image_url) AS image_url,ranked.sold
+         FROM (SELECT oi.item_id,oi.item_name AS name,SUM(oi.quantity) AS sold
+               FROM customer_order_items oi JOIN customer_orders o ON o.order_id=oi.order_id
+               WHERE o.created_at >= DATE_SUB(NOW(),INTERVAL 2 MONTH)
+                 AND LOWER(o.status) NOT IN ('cancelled','rejected','failed')
+               GROUP BY oi.item_id,oi.item_name ORDER BY sold DESC,oi.item_name ASC LIMIT 12) ranked
+         LEFT JOIN menu_items m ON m.item_id=ranked.item_id
+         WHERE m.item_kind='item' AND m.is_available=1
+           AND (m.publish_at IS NULL OR m.publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR))
+         ORDER BY ranked.sold DESC,ranked.name ASC"
     )->fetchAll();
+    $optionRows = $pdo->prepare("SELECT oi.quantity,oi.options_json FROM customer_order_items oi JOIN customer_orders o ON o.order_id=oi.order_id WHERE oi.item_id <=> ? AND oi.item_name=? AND o.created_at>=DATE_SUB(NOW(),INTERVAL 2 MONTH) AND LOWER(o.status) NOT IN ('cancelled','rejected','failed') AND oi.options_json IS NOT NULL");
+    foreach ($items as &$item) {
+        $optionRows->execute([$item['item_id']!==null?(int)$item['item_id']:null,$item['name']]);
+        $popularOptions=[];
+        foreach ($optionRows->fetchAll() as $orderLine) {
+            $selected=json_decode((string)$orderLine['options_json'],true);
+            if(!is_array($selected)) continue;
+            $collect=function(array $values) use (&$collect,&$popularOptions,$orderLine): void {
+                foreach($values as $key=>$value){
+                    if(in_array((string)$key,['specialRequest','special_request'],true)) continue;
+                    if(is_array($value)){
+                        foreach($value as $optionName=>$count){
+                            if(is_string($optionName)&&is_numeric($count)&&$count>0)$popularOptions[$optionName]=($popularOptions[$optionName]??0)+(int)$count*(int)$orderLine['quantity'];
+                            elseif(is_string($count)&&$count!=='')$popularOptions[$count]=($popularOptions[$count]??0)+(int)$orderLine['quantity'];
+                        }
+                        if(array_is_list($value))$collect($value);
+                    } elseif(is_string($value)&&$value!=='') $popularOptions[$value]=($popularOptions[$value]??0)+(int)$orderLine['quantity'];
+                }
+            };
+            $collect($selected);
+        }
+        arsort($popularOptions);$item['popular_options']=array_slice($popularOptions,0,3,true);
+    }
+    unset($item);
 } catch (PDOException $e) {
-    $dbError = 'Could not load menu items. Check that the menu_items table exists.';
+    $dbError = 'Could not load recent favorites. Check order and menu data availability.';
 }
 ?>
 
@@ -98,24 +130,37 @@ $pageScripts = <<<'HTML'
 })();
 </script>
 HTML;
+$pageScripts .= <<<'HTML'
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const slider=document.getElementById('favorites-slider');if(!slider)return;
+ const step=()=>{const card=slider.querySelector('.favorite-slide');return card?card.getBoundingClientRect().width+16:320;};
+ document.querySelector('[data-favorites-prev]').addEventListener('click',()=>slider.scrollBy({left:-step(),behavior:'smooth'}));
+ document.querySelector('[data-favorites-next]').addEventListener('click',()=>slider.scrollBy({left:step(),behavior:'smooth'}));
+ window.setInterval(()=>{if(slider.matches(':hover')||slider.contains(document.activeElement))return;const end=slider.scrollWidth-slider.clientWidth;if(slider.scrollLeft>=end-8)slider.scrollTo({left:0,behavior:'smooth'});else slider.scrollBy({left:step(),behavior:'smooth'});},5000);
+});
+</script>
+HTML;
 ?>
 
 <!-- Signature items -->
 <section class="container py-5 home-section">
   <div class="text-center mb-5">
     <h2 class="section-title">Our Signature Favorites</h2>
-    <p class="text-secondary mb-0">Customer picks you can't go wrong with.</p>
+    <p class="text-secondary mb-0">Top ordered items and options from the last two months.</p>
   </div>
 
   <?php if ($dbError): ?>
     <div class="alert alert-warning"><?= htmlspecialchars($dbError) ?></div>
   <?php elseif (!$items): ?>
-    <div class="alert alert-info">No menu items yet.</div>
+    <div class="alert alert-info">No recent order favorites yet.</div>
   <?php else: ?>
-    <div class="row g-4">
+    <div class="favorites-slider-wrap">
+      <button class="favorites-arrow" type="button" data-favorites-prev aria-label="Previous favorites"><i class="bi bi-chevron-left"></i></button>
+      <div class="favorites-slider" id="favorites-slider" tabindex="0" aria-label="Popular menu items from the last two months">
       <?php foreach ($items as $item): ?>
-        <div class="col-12 col-sm-6 col-lg-3">
-          <a href="order.php#order-category-5" style="text-decoration: none;">
+        <div class="favorite-slide">
+          <a href="menu.php" style="text-decoration: none;">
           <div class="card item-card h-100">
             <?php if (!empty($item['image_url'])): ?>
               <img src="<?= htmlspecialchars($item['image_url']) ?>" class="item-img" alt="<?= htmlspecialchars($item['name']) ?>">
@@ -128,11 +173,14 @@ HTML;
               <?php if ($item['price'] > 0): ?>
                 <span class="item-price">&#8369;<?= number_format($item['price'], 2) ?></span>
               <?php endif; ?>
+              <p class="small text-secondary mt-2 mb-1"><?=number_format((int)$item['sold'])?> ordered in 2 months</p>
+              <?php if($item['popular_options']): ?><div class="small"><strong>Popular options</strong><ul class="mb-0 ps-3"><?php foreach($item['popular_options'] as $optionName=>$optionCount): ?><li><?=htmlspecialchars((string)$optionName)?> <span class="text-secondary">(<?=number_format((int)$optionCount)?>)</span></li><?php endforeach; ?></ul></div><?php endif; ?>
             </div>
           </div>
           </a>
         </div>
       <?php endforeach; ?>
+      </div><button class="favorites-arrow" type="button" data-favorites-next aria-label="Next favorites"><i class="bi bi-chevron-right"></i></button>
     </div>
     <div class="text-center mt-5">
       <a href="menu.php" class="btn btn-order px-4">See Full Menu</a>

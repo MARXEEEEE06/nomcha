@@ -7,7 +7,7 @@
         <form class="footer-subscribe d-flex gap-2" action="subscribe.php" method="post"><input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>"><input type="email" name="email" class="form-control border-0" placeholder="Email Address" aria-label="Email Address" autocomplete="email" maxlength="255" required><button type="submit" class="btn btn-login rounded-0 px-4">Subscribe</button></form>
       </div>
       <div class="col-lg-6"><div class="row footer-links">
-        <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="menu.php">Menu</a></li><li class="mb-3"><a href="branches.php">Branches</a></li><li><a href="#">Franchise</a></li></ul>
+        <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="menu.php">Menu</a></li><li class="mb-3"><a href="branches.php">Branches</a></li></ul>
         <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="order.php">Order Now</a></li><li class="mb-3"><a href="our-story.php">Our Story</a></li><li><a href="promos.php">Promos</a></li></ul>
         <ul class="list-unstyled col-4 mb-0"><li class="mb-3"><a href="careers.php">Careers</a></li><li class="mb-3"><a href="contact.php">Contact Us</a></li><li class="mb-3"><a href="terms-of-use.php">Terms of Use</a></li><li><a href="legal.php">Legal</a></li></ul>
       </div></div>
@@ -25,5 +25,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <?= $pageScripts ?? '' ?>
 <script>document.addEventListener('DOMContentLoaded',()=>{const button=document.querySelector('.btn-top');if(!button)return;const threshold=320;const update=()=>button.classList.toggle('is-visible',window.scrollY>=threshold);window.addEventListener('scroll',update,{passive:true});update();});</script>
+<script>document.addEventListener('DOMContentLoaded',()=>document.documentElement.classList.add('page-ready'));</script>
 </body>
 </html>
