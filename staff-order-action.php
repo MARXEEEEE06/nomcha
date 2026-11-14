@@ -1,5 +1,5 @@
 <?php
-require 'includes/auth_helpers.php'; require 'includes/db.php'; require_staff_or_admin($pdo);
+require 'includes/auth_helpers.php'; require 'includes/db.php'; require_role($pdo, ['staff']);
 if ($_SERVER['REQUEST_METHOD']!=='POST'||!csrf_check($_POST['csrf']??null)) { http_response_code(400); exit('Invalid request.'); }
 $orderId=filter_var($_POST['order_id']??null,FILTER_VALIDATE_INT); $action=(string)($_POST['action']??''); $actor=(int)$_SESSION['user_id'];
 if (!$orderId||!in_array($action,['status','cancel'],true)) { http_response_code(400); exit('Invalid order action.'); }
