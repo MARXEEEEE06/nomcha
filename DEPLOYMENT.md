@@ -12,7 +12,7 @@ For local or other hosting, set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and 
 
 The repository includes a `Dockerfile` for the PHP application. In Aiven, select the repository and branch containing this file and deploy it as a container. The image runs Apache on port `8080` and includes PHP 8.2 with `pdo_mysql` enabled. Configure the application port as HTTP `8080`. In **Connected services**, connect the MySQL service; Aiven provides its `DATABASE_URL`, which the app can read directly. The app parses its host, port, database, username, and password. Explicit `DB_*` values take precedence when present. For connections using certificate verification, set `DB_SSL_CA` to the CA PEM contents or to a certificate path inside the container. Do not put credentials in the Dockerfile.
 
-The app writes career resumes under `uploads/resumes`. Container filesystems may be replaced during redeploys, so attach persistent storage at `/var/www/html/uploads` if uploaded resumes must survive deployments. Menu images stored in the database do not need this volume.
+The app writes career resumes, employee photos, and promotion images under `/var/www/html/uploads`. Container filesystems may be replaced during redeploys, so attach persistent storage at `/var/www/html/uploads` if those uploaded files must survive deployments. Menu images stored in the database do not need this volume.
 
 ## Netlify
 

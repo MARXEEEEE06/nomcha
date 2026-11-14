@@ -6,11 +6,13 @@ function save_square_employee_photo(array $upload): string {
     if (!$info || (int)$info[0] !== (int)$info[1]) throw new RuntimeException('Employee photos must be square (1:1).');
     $types=[IMAGETYPE_JPEG=>['image/jpeg','jpg'],IMAGETYPE_PNG=>['image/png','png'],IMAGETYPE_WEBP=>['image/webp','webp']];
     if (!isset($types[$info[2]])) throw new RuntimeException('Use a JPG, PNG, or WebP employee photo.');
-    $dir=__DIR__.'/../assets/uploads/employees';
+    // Store uploads beneath the writable uploads volume used by the container,
+    // rather than in the read-only deployed application assets directory.
+    $dir=dirname(__DIR__).'/uploads/employees';
     if (!is_dir($dir) && !mkdir($dir,0755,true) && !is_dir($dir)) throw new RuntimeException('The employee photo folder is unavailable.');
     $name='employee_'.bin2hex(random_bytes(16)).'.'.$types[$info[2]][1];
     if (!move_uploaded_file((string)$upload['tmp_name'],$dir.'/'.$name)) throw new RuntimeException('Could not save the employee photo.');
-    return 'assets/uploads/employees/'.$name;
+    return 'uploads/employees/'.$name;
 }
 
 function uploaded_menu_image(array $upload): ?array {
