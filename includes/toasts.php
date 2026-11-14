@@ -17,5 +17,5 @@ function render_toasts(array $messages): void {
         }
         echo '</div><button type="button" class="order-toast-close" data-order-toast-close aria-label="Dismiss">&times;</button></div>';
     }
-    echo '</div><script>document.addEventListener("click",e=>{const b=e.target.closest("[data-order-toast-close]");if(b)b.closest(".order-toast")?.remove()});</script>';
+    echo '</div><script>document.addEventListener("click",e=>{const b=e.target.closest("[data-order-toast-close]");if(b)b.closest(".order-toast")?.remove()});document.querySelectorAll(".order-toast").forEach(t=>{const life=7000;setTimeout(()=>{t.style.transition="opacity .25s,transform .25s";t.style.opacity="0";t.style.transform="translateY(-8px)";setTimeout(()=>t.remove(),280)},life)});</script>';
 }

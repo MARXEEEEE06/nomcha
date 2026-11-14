@@ -1,7 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-const NAME_RE   = '/^[\p{L}][\p{L} .\'-]{0,99}$/u';
+const NAME_RE   = '/^[\p{L}][\p{L} .\'-]{1,99}$/u';
 const MOBILE_RE = '/^(09\d{9}|\+639\d{9})$/';
 const PASS_RE   = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/';
 const LOGIN_MAX_ATTEMPTS = 5;

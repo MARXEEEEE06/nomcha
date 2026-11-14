@@ -73,10 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$challenge || (int)$challenge['user_id'] !== (int)($_SESSION['login_otp_user_id'] ?? 0)) {
                 $errors['form'] = 'That code is incorrect or expired. Request a new code and try again.';
             } else {
-                $user = $pdo->prepare('SELECT c.user_id,c.role,i.first_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.user_id=? AND c.email_addr=? AND c.is_active=1');
+                $user = $pdo->prepare('SELECT c.user_id,c.role,c.first_login_activation,i.first_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.user_id=? AND c.email_addr=? AND (c.is_active=1 OR c.first_login_activation=1)');
                 $user->execute([(int)$challenge['user_id'], (string)($_SESSION['login_otp_email'] ?? '')]);
                 $row = $user->fetch();
                 if (!$row) throw new RuntimeException('Account is unavailable.');
+                if ((int)$row['first_login_activation'] === 1) $pdo->prepare('UPDATE user_credentials SET is_active=1,first_login_activation=0 WHERE user_id=? AND first_login_activation=1')->execute([(int)$row['user_id']]);
                 clear_login_failures($pdo, (string)($_SESSION['login_otp_email'] ?? ''));
                 session_regenerate_id(true);
                 unset($_SESSION['csrf']);
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!valid_login_email($email) || strlen($email) > 255) $errors['email_addr'] = 'Enter a valid email address.';
         else {
             try {
-                $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email_addr=? AND is_active=1');
+                $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email_addr=? AND (is_active=1 OR first_login_activation=1)');
                 $stmt->execute([$email]);
                 $userId = (int)$stmt->fetchColumn();
                 if ($userId) {
@@ -127,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors['form'] = 'Too many login attempts, please try again later.';
                 } else {
                     $stmt = $pdo->prepare(
-                        'SELECT c.user_id, c.password, c.role, c.is_active, i.first_name
+                        'SELECT c.user_id, c.password, c.role, c.is_active, c.first_login_activation, i.first_name
                          FROM user_credentials c
                          JOIN user_info i ON i.user_id = c.user_id
                          WHERE c.email_addr = ? LIMIT 1'
@@ -136,7 +137,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $row  = $stmt->fetch();
                     $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
 
-                    if ($row && (int)$row['is_active'] === 1 && account_password_matches($email, $hash, $password)) {
+                    if ($row && ((int)$row['is_active'] === 1 || (int)$row['first_login_activation'] === 1) && account_password_matches($email, $hash, $password)) {
+                        if ((int)$row['first_login_activation'] === 1) $pdo->prepare('UPDATE user_credentials SET is_active=1,first_login_activation=0 WHERE user_id=? AND first_login_activation=1')->execute([(int)$row['user_id']]);
                         $attemptStmt = $pdo->prepare('SELECT attempt_count FROM login_attempts WHERE email_addr=?');
                         $attemptStmt->execute([$email]);
                         $failedAttempts = (int)$attemptStmt->fetchColumn();

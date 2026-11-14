@@ -17,7 +17,7 @@ $items = [];
 $dbError = null;
 try {
     $items = $pdo->query(
-        "SELECT ranked.item_id,ranked.name,COALESCE(m.description,'') AS description,m.price,
+        "SELECT ranked.item_id,ranked.name,COALESCE(m.description,'') AS description,m.price,m.category_id,m.availability_scope,
                 IF(m.image_data IS NOT NULL,CONCAT('menu-image.php?id=',m.item_id),m.image_url) AS image_url,ranked.sold
          FROM (SELECT oi.item_id,oi.item_name AS name,SUM(oi.quantity) AS sold
                FROM customer_order_items oi JOIN customer_orders o ON o.order_id=oi.order_id
@@ -160,7 +160,7 @@ HTML;
       <div class="favorites-slider" id="favorites-slider" tabindex="0" aria-label="Popular menu items from the last two months">
       <?php foreach ($items as $item): ?>
         <div class="favorite-slide">
-          <a href="menu.php" style="text-decoration: none;">
+          <a href="<?= $item['availability_scope'] === 'item_only' ? 'order.php#order-category-' . (int)$item['category_id'] : 'menu.php' ?>" style="text-decoration: none;">
           <div class="card item-card h-100">
             <?php if (!empty($item['image_url'])): ?>
               <img src="<?= htmlspecialchars($item['image_url']) ?>" class="item-img" alt="<?= htmlspecialchars($item['name']) ?>">

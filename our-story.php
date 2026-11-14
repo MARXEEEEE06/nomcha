@@ -4,7 +4,7 @@ include 'includes/header.php';
 ?>
 
 <main class="story-page">
-	<section class="story-hero py-5 py-lg-6">
+	<section class="story-hero py-5 py-lg-5">
 		<div class="container py-lg-5">
 			<div class="row justify-content-center">
 				<div class="col-lg-9 story-hero-copy text-center">

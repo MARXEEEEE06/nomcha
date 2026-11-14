@@ -31,7 +31,7 @@ if (in_array($level, ['provinces', 'localities', 'barangays'], true) && !preg_ma
 try {
     $rows = match ($level) {
         'regions'    => psgc_regions($pdo),
-        'provinces'  => psgc_provinces($pdo, $parent),
+        'provinces'  => $parent === PSGC_NCR_CODE ? [['code' => PSGC_NCR_CODE, 'label' => 'Metro Manila']] : psgc_provinces($pdo, $parent),
         'localities' => psgc_localities($pdo, $parent),
         'barangays'  => psgc_barangays($pdo, $parent),
         default      => null,

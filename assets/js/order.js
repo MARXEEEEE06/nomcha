@@ -256,6 +256,7 @@
     validation.textContent = '';
     const specialRequest = document.querySelector('.order-special-request');
     specialRequest.hidden = false;
+    document.getElementById('option-special-request').value = '';
 
     if (item.fanverse) {
       const addCountGroup = (key, label, subtitle, choices, required) => {

@@ -6,7 +6,7 @@ require_customer($pdo);
 if (empty($_SESSION['user_id'])) { header('Location: login.php?redirect=' . rawurlencode('billing-address.php')); exit; }
 $userId = (int)$_SESSION['user_id'];
 $errors = [];
-$old = ['address_id'=>'','recipient_name'=>'','mobile_no'=>'','street_address'=>'','region_code'=>'','municipality_code'=>'','barangay_code'=>'','zip_code'=>'','latitude'=>'','longitude'=>''];
+$old = ['address_id'=>'','recipient_name'=>'','mobile_no'=>'','street_address'=>'','region_code'=>'','province_code'=>'','municipality_code'=>'','barangay_code'=>'','zip_code'=>'','latitude'=>'','longitude'=>''];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_check($_POST['csrf'] ?? null)) $errors[] = 'Session expired. Please try again.';
     elseif (($_POST['action'] ?? '') === 'delete') {
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!preg_match('/^(09\d{9}|\+639\d{9})$/', $old['mobile_no'])) $errors[]='Enter a Philippine mobile number.';
         $lat=filter_var($old['latitude'],FILTER_VALIDATE_FLOAT); $lng=filter_var($old['longitude'],FILTER_VALIDATE_FLOAT);
         if ($lat===false || $lat < -90 || $lat > 90 || $lng===false || $lng < -180 || $lng > 180) $errors[]='Choose a map pin location.';
-        $place = psgc_resolve($pdo,$old['region_code'],$old['municipality_code'],$old['barangay_code']);
+        $place = psgc_resolve($pdo,$old['region_code'],$old['province_code'],$old['municipality_code'],$old['barangay_code']);
         if (!$place) $errors[]='Select a valid region, city / municipality and barangay.';
         if (!$errors) {
             $pdo->beginTransaction();
@@ -90,7 +90,7 @@ $addressFields = [
     'zip_code' => ['ZIP code', '1105', 4, 'text', 'inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code"'],
 ];
 foreach ($addressFields as $key => [$label, $example, $maxLength, $type, $extra]):
-?><?php if ($key === 'zip_code'): $psgc = psgc_form_state($pdo, $old); psgc_select_field('region', $psgc['regions'], $old['region_code'] ?? ''); psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'] ?? ''); psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'] ?? ''); endif; ?><label class="form-label" for="<?=$key?>"><?=$label?></label><input class="form-control mb-3" id="<?=$key?>" name="<?=$key?>" type="<?=$type?>" maxlength="<?=$maxLength?>" placeholder="e.g. <?=e($example)?>" <?=$extra?> required value="<?=e($old[$key])?>"><?php endforeach; ?>
+?><?php if ($key === 'zip_code'): $psgc = psgc_form_state($pdo, $old); psgc_select_field('region', $psgc['regions'], $old['region_code'] ?? ''); psgc_select_field('province', $psgc['provinces'], $old['province_code'] ?? ''); psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'] ?? ''); psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'] ?? ''); endif; ?><label class="form-label" for="<?=$key?>"><?=$label?></label><input class="form-control mb-3" id="<?=$key?>" name="<?=$key?>" type="<?=$type?>" maxlength="<?=$maxLength?>" placeholder="e.g. <?=e($example)?>" <?=$extra?> required value="<?=e($old[$key])?>"><?php endforeach; ?>
 <label class="form-label" for="address-map">Map pin location (click the map)</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div><div class="row mt-2"><div class="col-sm-6"><label class="form-label" for="latitude">Latitude</label><input class="form-control" type="number" step="any" min="-90" max="90" id="latitude" name="latitude" required value="<?=e($old['latitude'])?>"></div><div class="col-sm-6"><label class="form-label" for="longitude">Longitude</label><input class="form-control" type="number" step="any" min="-180" max="180" id="longitude" name="longitude" required value="<?=e($old['longitude'])?>"></div></div>
 <button class="btn btn-auth mt-3">Save address</button></form></div></div>
 </div></div></main>

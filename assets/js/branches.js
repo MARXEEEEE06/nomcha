@@ -141,21 +141,27 @@
   });
 
   locationButton.addEventListener('click', () => {
-    if (!navigator.geolocation) {
-      locationStatus.textContent = 'Location is not available in this browser.';
-      return;
-    }
-    if (locationMode && userLocation) {
+    const label = locationButton.querySelector('span');
+    if (locationMode) {
       locationMode = false;
       locationButton.setAttribute('aria-pressed', 'false');
       locationButton.classList.remove('is-active');
+      locationButton.disabled = false;
+      if (label) label.textContent = 'Locate nearest branch';
       locationStatus.textContent = 'Showing all branches.';
+      if (userMarker) { userMarker.remove(); userMarker = null; }
+      userLocation = null;
       renderResults();
+      return;
+    }
+    if (!navigator.geolocation) {
+      locationStatus.textContent = 'Location is not available in this browser.';
       return;
     }
     locationMode = true;
     locationButton.setAttribute('aria-pressed', 'true');
     locationButton.classList.add('is-active');
+    if (label) label.textContent = 'Show all';
     locationButton.disabled = true;
     locationStatus.textContent = 'Finding branches near you…';
     rangeWarningShown = false;
@@ -187,6 +193,7 @@
       locationMode = false;
       locationButton.setAttribute('aria-pressed', 'false');
       locationButton.classList.remove('is-active');
+      if (label) label.textContent = 'Locate nearest branch';
       locationStatus.textContent = error.code === error.PERMISSION_DENIED
         ? 'Location permission was not granted. You can still search by province or city.'
         : 'Could not determine your location. You can still search by province or city.';

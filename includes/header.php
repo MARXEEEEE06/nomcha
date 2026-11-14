@@ -25,7 +25,6 @@ function navActive(string $file, string $current): string {
   <?= $pageStyles ?? '' ?>
 </head>
 <body>
-<div class="page-skeleton" aria-hidden="true"><span></span><span></span><span></span></div>
 
 <nav class="navbar navbar-expand-xl navbar-nomcha sticky-top" data-bs-theme="dark">
   <div class="container">
@@ -36,6 +35,7 @@ function navActive(string $file, string $current): string {
 
     <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav me-auto mb-2 mb-xl-0">
+            <li class="nav-item"><a class="nav-link<?= navActive('index.php', $current) ?>" href="index.php">Home</a></li>
             <?php if ($isManagementRole): ?>
             <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
             <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Dashboard</a></li>

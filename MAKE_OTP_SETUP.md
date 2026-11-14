@@ -4,7 +4,7 @@ Nomcha generates and checks the six-digit codes. Make only receives the email co
 
 ## 1. Prepare the database
 
-In phpMyAdmin, select `nomcha_db`, open the **Import** tab, and apply the OTP migrations in date order, including `database/migrations/20261116_login_otp.sql` to enable OTP login.
+In phpMyAdmin, select `nomcha_db`, open the **Import** tab, and apply the migrations in date order. `database/migrations/20261116_login_otp.sql` enables OTP login; apply `database/migrations/20261122_first_login_employee_activation.sql` for the inactive-until-first-login employee flow.
 
 ## 2. Create the Make scenario
 

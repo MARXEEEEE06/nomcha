@@ -180,9 +180,9 @@ require 'includes/header.php';
         <form method="post" action="register.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
           <fieldset class="mb-4"><legend class="h5">Personal info</legend><div class="row">
-            <div class="col-md-4"><?php form_field('first_name', 'First name', 'text', $old['first_name'], $errors['first_name'] ?? null, 'required maxlength="100" autocomplete="given-name"'); ?></div>
-            <div class="col-md-4"><?php form_field('middle_name', 'Middle name (optional)', 'text', $old['middle_name'], $errors['middle_name'] ?? null, 'maxlength="100" autocomplete="additional-name"'); ?></div>
-            <div class="col-md-4"><?php form_field('last_name', 'Last name', 'text', $old['last_name'], $errors['last_name'] ?? null, 'required maxlength="100" autocomplete="family-name"'); ?></div>
+            <div class="col-md-4"><?php form_field('first_name', 'First name', 'text', $old['first_name'], $errors['first_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="given-name"'); ?></div>
+            <div class="col-md-4"><?php form_field('middle_name', 'Middle name (optional)', 'text', $old['middle_name'], $errors['middle_name'] ?? null, 'minlength="2" maxlength="100" autocomplete="additional-name"'); ?></div>
+            <div class="col-md-4"><?php form_field('last_name', 'Last name', 'text', $old['last_name'], $errors['last_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="family-name"'); ?></div>
           </div></fieldset>
           <fieldset class="mb-4"><legend class="h5">Password</legend><div class="row">
             <div class="col-md-6">
@@ -199,7 +199,7 @@ require 'includes/header.php';
           </div></fieldset>
           <fieldset class="mb-4"><legend class="h5">Billing address <small class="text-secondary">(default)</small></legend>
             <?php form_field('recipient_name', 'Recipient name', 'text', $old['recipient_name'], $errors['recipient_name'] ?? null, 'required maxlength="120" autocomplete="name" placeholder="e.g. Juan Dela Cruz"'); ?>
-            <?php form_field('street_address', 'Address', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required maxlength="255" autocomplete="address-line1" placeholder="e.g. 123 Street, Camella Subdiv., 2nd Floor ABC Bldg."'); ?>
+            <?php form_field('street_address', 'Unit/House Number and Street Name', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required minlength="2" maxlength="255" autocomplete="address-line1" placeholder="Unit/House Number and Street Name"'); ?>
             <?php $psgc = psgc_form_state($pdo, $old); ?>
             <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('province', $psgc['provinces'], $old['province_code'], $errors['province_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div></div><div class="row"><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
             <label class="form-label" for="address-map">Map pin location</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div>

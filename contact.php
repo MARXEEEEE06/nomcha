@@ -6,7 +6,7 @@ $errors=[];$saved=false;
 if($_SERVER['REQUEST_METHOD']==='POST'){
  if(!csrf_check($_POST['csrf']??null))$errors[]='Your session expired. Please try again.';
  $n=trim((string)($_POST['full_name']??''));$email=strtolower(trim((string)($_POST['email']??'')));$mobile=trim((string)($_POST['mobile_number']??''));$subject=trim((string)($_POST['subject']??''));$message=trim((string)($_POST['message']??''));
- if(!$n||!filter_var($email,FILTER_VALIDATE_EMAIL)||!$mobile||!$subject||mb_strlen($message)<5)$errors[]='Please complete each field and enter a valid email.';
+ $mobile=normalize_mobile($mobile); if(!preg_match(NAME_RE,$n)||!filter_var($email,FILTER_VALIDATE_EMAIL)||!preg_match(MOBILE_RE,$mobile)||!$subject||mb_strlen($message)<5||mb_strlen($message)>3000)$errors[]='Enter a valid name (at least two characters), email, Philippine mobile number, subject, and message.';
  if(!$errors&&email_owned_by_another_account($pdo,$email))$errors[]='That email address belongs to another account. Use your own email address.';
  if(!$errors){$pdo->prepare('INSERT INTO contact_submissions(full_name,email,mobile_number,subject,message) VALUES(?,?,?,?,?)')->execute([$n,$email,$mobile,$subject,$message]);$id=(int)$pdo->lastInsertId();$pdo->prepare("INSERT INTO team_inbox_events(event_type,title,message,audience,entity_type,entity_id) VALUES('customer_feedback','New customer feedback',?,'all','contact',?)")->execute([$subject.' — '.$n,$id]);$saved=true;}
 }

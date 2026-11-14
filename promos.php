@@ -160,7 +160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $tab = ($_GET['tab'] ?? 'promos') === 'vouchers' ? 'vouchers' : 'promos';
-$promos = $isTeam ? $pdo->query('SELECT * FROM promotions ORDER BY starts_at DESC')->fetchAll() : $pdo->query("SELECT * FROM promotions WHERE status='active' AND NOW() BETWEEN starts_at AND ends_at ORDER BY starts_at")->fetchAll();
+$promos = $isTeam
+    ? $pdo->query('SELECT * FROM promotions ORDER BY starts_at DESC')->fetchAll()
+    : (function () use ($pdo, $tab): array {
+        $stmt = $pdo->prepare("SELECT * FROM promotions WHERE is_platform_voucher=? AND status='active' AND NOW() BETWEEN starts_at AND ends_at ORDER BY starts_at");
+        $stmt->execute([$tab === 'vouchers' ? 1 : 0]);
+        return $stmt->fetchAll();
+    })();
 $eligibleItems = $pdo->query("SELECT i.item_id,i.name,i.category_id,COALESCE(c.name,'Other') AS category_name FROM menu_items i LEFT JOIN menu_categories c ON c.category_id=i.category_id WHERE i.item_kind='item' AND i.is_available=1 ORDER BY category_name,i.name")->fetchAll();
 $categories = [];
 foreach ($eligibleItems as $item) $categories[$item['category_name']][] = $item;

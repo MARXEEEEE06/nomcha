@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             if (!$row||!in_array($new,[0,1],true)) $messages[]=['kind'=>'danger','text'=>'Employee status could not be changed.'];
             elseif ((int)$row['is_active']===$new) $messages[]=['kind'=>'info','text'=>'Employee status is already up to date.'];
             elseif ($row['role']==='admin'&&$new===0&&(int)$pdo->query("SELECT COUNT(*) FROM user_credentials WHERE role='admin' AND is_active=1")->fetchColumn()<=1) $messages[]=['kind'=>'danger','text'=>'The last active admin cannot be deactivated.'];
-            else { $pdo->prepare('UPDATE user_credentials SET is_active=? WHERE user_id=?')->execute([$new,$id]); $_SESSION['flash_success']=$new?'Employee account activated.':'Employee account deactivated.'; header('Location: employees.php'); exit; }
+            else { $pdo->prepare('UPDATE user_credentials SET is_active=?,first_login_activation=0 WHERE user_id=?')->execute([$new,$id]); $_SESSION['flash_success']=$new?'Employee account activated.':'Employee account deactivated.'; header('Location: employees.php'); exit; }
         } elseif (($_POST['action']??'')==='reset_staff_password') {
             $target=$pdo->prepare("SELECT c.email_addr,c.role,i.first_name,i.middle_name,i.last_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.user_id=?"); $target->execute([$id]); $employee=$target->fetch();
             if (!$employee||$employee['role']!=='staff') $messages[]=['kind'=>'danger','text'=>'Password reset is available for staff accounts only.'];

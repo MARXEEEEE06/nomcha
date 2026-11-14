@@ -101,7 +101,8 @@ function renderItems(array $items): void {
                 <div class="d-flex align-items-center justify-content-between">
                   <a class="nav-link flex-grow-1" href="#cat-<?= $cat['category_id'] ?>"><?= htmlspecialchars($cat['name']) ?></a>
                   <button class="btn btn-sm menu-toggle" type="button"
-                          data-bs-toggle="collapse" data-bs-target="#sub-<?= $cat['category_id'] ?>"
+                          data-bs-target="#sub-<?= $cat['category_id'] ?>"
+                          onclick="const panel=document.getElementById('sub-<?= (int)$cat['category_id'] ?>');const expanded=this.getAttribute('aria-expanded')==='true';this.setAttribute('aria-expanded',String(!expanded));panel.hidden=expanded;panel.classList.toggle('show',!expanded);"
                           aria-expanded="true" aria-label="Toggle <?= htmlspecialchars($cat['name']) ?>">
                     <i class="bi bi-chevron-up"></i>
                   </button>
@@ -124,7 +125,7 @@ function renderItems(array $items): void {
       <!-- Continuous item list -->
       <div class="col-lg-9">
         <?php foreach ($tree as $cat): ?>
-          <section id="cat-<?= $cat['category_id'] ?>" class="menu-section">
+          <section id="cat-<?= $cat['category_id'] ?>" class="menu-section" data-menu-category="<?= (int)$cat['category_id'] ?>">
             <h2 class="menu-title mb-3"><?= htmlspecialchars($cat['name']) ?></h2>
             <?php if (!empty($cat['description'])): ?>
               <p class="menu-desc"><?= htmlspecialchars($cat['description']) ?></p>
@@ -133,7 +134,7 @@ function renderItems(array $items): void {
             <?php renderItems($itemsByCat[$cat['category_id']] ?? []); ?>
 
             <?php foreach ($cat['children'] as $sub): ?>
-              <section id="cat-<?= $sub['category_id'] ?>" class="menu-subsection mt-5">
+              <section id="cat-<?= $sub['category_id'] ?>" class="menu-subsection mt-5" data-menu-category="<?= (int)$sub['category_id'] ?>">
                 <h3 class="menu-subtitle mb-3"><?= htmlspecialchars($sub['name']) ?></h3>
                 <?php if (!empty($sub['description'])): ?>
                   <p class="menu-desc"><?= htmlspecialchars($sub['description']) ?></p>
@@ -153,7 +154,29 @@ function renderItems(array $items): void {
 <?php
 $pageScripts = <<<'HTML'
 <script>
-  new bootstrap.ScrollSpy(document.body, { target: '#menu-sidebar', rootMargin: '-100px 0px -60% 0px' });
+const menuSections = [...document.querySelectorAll('[data-menu-category]')];
+const menuLinks = [...document.querySelectorAll('#menu-sidebar a[href^="#cat-"], .menu-pills a[href^="#cat-"]')];
+let selectedMenuCategory = null;
+const showMenuCategory = id => {
+  if (selectedMenuCategory === id) {
+    selectedMenuCategory = null;
+    menuSections.forEach(section => { section.hidden = false; });
+    menuLinks.forEach(link => link.classList.remove('active'));
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+    return;
+  }
+  const selected = menuSections.find(section => section.dataset.menuCategory === id);
+  if (!selected) return;
+  selectedMenuCategory = id;
+  const visible = new Set([id]);
+  for (let parent = selected.parentElement.closest('[data-menu-category]'); parent; parent = parent.parentElement.closest('[data-menu-category]')) visible.add(parent.dataset.menuCategory);
+  menuSections.forEach(section => { section.hidden = !visible.has(section.dataset.menuCategory); });
+  menuLinks.forEach(link => link.classList.toggle('active', link.hash === `#cat-${id}`));
+  history.replaceState(null, '', `#cat-${id}`);
+};
+menuLinks.forEach(link => link.addEventListener('click', event => { event.preventDefault(); showMenuCategory(link.hash.slice(5)); }));
+const initialMenuCategory = location.hash.startsWith('#cat-') ? location.hash.slice(5) : menuSections[0]?.dataset.menuCategory;
+if (initialMenuCategory) showMenuCategory(initialMenuCategory);
 </script>
 HTML;
 require 'includes/footer.php';

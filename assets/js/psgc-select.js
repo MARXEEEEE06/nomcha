@@ -2,7 +2,6 @@
   // Region loads Province and City/Municipality separately; municipalities load barangays.
   // Markup comes from psgc_select_field() (includes/psgc_helpers.php).
   const CHILD = { municipality: 'barangay' };
-  const ENDPOINT_LEVEL = { region: 'localities', municipality: 'barangays' };
   const find = (form, level) => form.querySelector(`[data-psgc-level="${level}"]`);
 
   const setNote = (select, message) => {
@@ -28,7 +27,7 @@
   const loadChildren = async parent => {
     const form = parent.closest('form');
     const parentLevel = parent.dataset.psgcLevel;
-    if (!form || !['region', 'municipality'].includes(parentLevel)) return;
+    if (!form || !['region', 'province', 'municipality'].includes(parentLevel)) return;
     if (parentLevel === 'region') {
       const municipality = find(form, 'municipality');
       const barangay = find(form, 'barangay');
@@ -38,9 +37,17 @@
       if (province) {
         clear(province);
         province.disabled = !parent.value;
-        if (parent.value) loadOptions(parent, province, 'provinces');
       }
-      loadOptions(parent, find(form, 'municipality'), 'localities');
+      if (province) loadOptions(parent, province, 'provinces');
+      else loadOptions(parent, find(form, 'municipality'), 'localities');
+      return;
+    }
+    if (parentLevel === 'province') {
+      const municipality = find(form, 'municipality');
+      const barangay = find(form, 'barangay');
+      if (municipality) clear(municipality);
+      if (barangay) clear(barangay);
+      if (municipality) loadOptions(parent, municipality, 'localities');
       return;
     }
     const childLevel = CHILD[parentLevel];
@@ -51,7 +58,7 @@
     const child = find(form, childLevel);
     if (!child || !parent.value) return;
 
-    loadOptions(parent, child, ENDPOINT_LEVEL[parentLevel]);
+    loadOptions(parent, child, 'barangays');
   };
 
   const loadOptions = async (parent, child, endpoint) => {
@@ -77,7 +84,7 @@
 
   document.addEventListener('change', event => {
     const select = event.target.closest?.('[data-psgc-level]');
-    if (select && ['region', 'municipality'].includes(select.dataset.psgcLevel)) loadChildren(select);
+    if (select && ['region', 'province', 'municipality'].includes(select.dataset.psgcLevel)) loadChildren(select);
   });
 
   // Used by billing-address.js when the form is reset for a new address.
