@@ -3,15 +3,17 @@
   if (!element || !window.L) return;
   const latInput = document.getElementById('latitude');
   const lngInput = document.getElementById('longitude');
+  const philippinesBounds = L.latLngBounds([[4.5, 116.9], [21.2, 126.7]]);
   let map;
   let marker;
   const initialize = () => {
     if (map || element.clientWidth === 0 || element.clientHeight === 0) return;
     const lat = Number(latInput?.value) || 14.5995;
     const lng = Number(lngInput?.value) || 120.9842;
-    map = L.map(element).setView([lat, lng], latInput?.value && lngInput?.value ? 16 : 6);
+    map = L.map(element, { maxBounds: philippinesBounds, maxBoundsViscosity: 1.0, minZoom: 6 }).setView([lat, lng], latInput?.value && lngInput?.value ? 16 : 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
     const placePin = point => {
+      if (!philippinesBounds.contains(point)) return;
       if (marker) marker.setLatLng(point); else marker = L.marker(point, { draggable: true }).addTo(map);
       marker.off('dragend').on('dragend', event => placePin(event.target.getLatLng()));
       latInput.value = Number(point.lat).toFixed(7);

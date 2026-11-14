@@ -86,7 +86,7 @@
   });
   modalElement.addEventListener('shown.bs.modal', () => {
     if (!map && window.L) {
-      map = L.map(mapElement).setView([14.5948, 121.0584], 6);
+      map = L.map(mapElement, { maxBounds: L.latLngBounds([[4.5, 116.9], [21.2, 126.7]]), maxBoundsViscosity: 1.0, minZoom: 6 }).setView([14.5948, 121.0584], 6);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
       branches.forEach(branch => {
         const marker = L.marker([branch.lat, branch.lng]).addTo(map).bindPopup(`<strong>${esc(branch.name)}</strong><br>${esc(branch.address)}`);
