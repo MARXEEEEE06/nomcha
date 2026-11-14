@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if (!preg_match(NAME_RE,$form['first_name'])||!preg_match(NAME_RE,$form['last_name'])||($form['middle_name']!==''&&!preg_match(NAME_RE,$form['middle_name']))) $errors[]='Enter valid employee names.';
     if (!filter_var($form['email_addr'],FILTER_VALIDATE_EMAIL)||strlen($form['email_addr'])>255) $errors[]='Enter a valid employee email address.';
     $form['mobileno']=normalize_mobile($form['mobileno']); if (!preg_match(MOBILE_RE,$form['mobileno'])) $errors[]='Enter a valid Philippine mobile number.';
-    if (!in_array($form['role'],['staff','admin'],true)) $errors[]='Choose a valid employee role.';
+    if (!preg_match('/^[a-z][a-z0-9_]{1,31}$/',$form['role'])||$form['role']==='customer') $errors[]='Choose a valid employee role.';
     foreach (['street_address'=>255,'zip_code'=>10] as $key=>$max) if ($form[$key]===''||mb_strlen($form[$key])>$max) $errors[]='Enter a valid complete employee address.';
     if ($form['zip_code']!==''&&!preg_match('/^[A-Za-z0-9 -]{3,10}$/',$form['zip_code'])) $errors[]='Enter a valid ZIP or postal code.';
     $place=psgc_resolve($pdo,$form['region_code'],$form['municipality_code'],$form['barangay_code']); if (!$place) $errors[]='Select a valid region, city / municipality and barangay.';

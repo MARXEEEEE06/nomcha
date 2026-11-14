@@ -28,7 +28,7 @@ function current_role(PDO $pdo): ?string {
     $stmt->execute([$userId]);
     $account = $stmt->fetch();
     $role = $account['role'] ?? null;
-    if (!in_array($role, ['customer', 'staff', 'admin'], true)) {
+    if (!is_string($role) || !preg_match('/^(customer|[a-z][a-z0-9_]{1,31})$/', $role)) {
         $_SESSION = [];
         return null;
     }
