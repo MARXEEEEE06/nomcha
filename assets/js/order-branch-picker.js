@@ -55,6 +55,7 @@
     branchLabel.textContent = `${branch.name} · ${branch.address}`;
     results.querySelectorAll('.order-branch-result').forEach(button => button.classList.toggle('active', button.dataset.branchId === String(branch.id)));
     updateFee();
+    window.bootstrap?.Modal.getOrCreateInstance(modalElement).hide();
   };
   const renderResults = () => {
     const query = search.value.trim().toLocaleLowerCase();

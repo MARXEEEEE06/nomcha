@@ -86,7 +86,7 @@ require 'includes/header.php';
 $addressFields = [
     'recipient_name' => ['Name', 'Juan Dela Cruz', 120, 'text', 'autocomplete="name"'],
     'mobile_no' => ['Mobile number', '09XXXXXXXXX', 13, 'tel', 'inputmode="tel" pattern="(09[0-9]{9}|\+639[0-9]{9})"'],
-    'street_address' => ['Address', '123 Street, Camella Subdiv., 2nd Floor ABC Bldg.', 255, 'text', 'autocomplete="address-line1"'],
+    'street_address' => ['Address', 'Unit/House Number and Street Name', 255, 'text', 'autocomplete="address-line1"'],
     'zip_code' => ['ZIP code', '1105', 4, 'text', 'inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code"'],
 ];
 foreach ($addressFields as $key => [$label, $example, $maxLength, $type, $extra]):

@@ -94,6 +94,26 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .font-display {
 .navbar-nomcha .nav-link:hover,
 .navbar-nomcha .nav-link.active { color: var(--nc-tan); }
 
+/* Management shell */
+.management-body { background: #f7f3ed; }
+.management-topbar { height: 4.25rem; display:flex; align-items:center; justify-content:space-between; padding:0 1.5rem; background:var(--nc-red); color:var(--nc-cream); }
+.management-brand { display:flex; align-items:center; gap:.65rem; color:var(--nc-cream); text-decoration:none; font:700 1.4rem 'Playfair Display',serif; }
+.management-brand img { width:2.6rem; height:2.6rem; object-fit:contain; }
+.management-user { color:var(--nc-cream); }
+.management-user:hover,.management-user.show { color:#fff; }
+.management-layout { display:flex; flex:1 0 auto; min-height:calc(100vh - 4.25rem); }
+.management-sidebar { flex:0 0 250px; padding:1.5rem 1rem; background:#fffdf9; border-right:1px solid rgba(24,4,4,.1); }
+.management-nav-label { margin:.25rem .75rem .65rem; color:#8a7b70; font-size:.7rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }
+.management-nav-link { display:flex; align-items:center; gap:.8rem; margin:.15rem 0; padding:.7rem .8rem; border-radius:.55rem; color:#51443c; text-decoration:none; font-size:.9rem; font-weight:500; }
+.management-nav-link i { width:1.2rem; color:#866f5e; font-size:1.05rem; }
+.management-nav-link:hover { background:#f5eee5; color:var(--nc-red); }
+.management-nav-link.active { background:rgba(172,18,18,.09); color:var(--nc-red); }
+.management-nav-link.active i { color:var(--nc-red); }
+.management-content { display:flex; flex:1 1 auto; min-width:0; flex-direction:column; }
+.management-content > main { width:100%; }
+.management-content > .footer-nomcha { margin-top:auto!important; }
+@media(max-width:767.98px) { .management-topbar { padding:0 1rem; } .management-layout { display:block; } .management-sidebar { display:flex; gap:.35rem; overflow-x:auto; padding:.65rem .75rem; border-right:0; border-bottom:1px solid rgba(24,4,4,.1); } .management-nav-label { display:none; } .management-nav-link { flex:0 0 auto; margin:0; padding:.55rem .7rem; white-space:nowrap; font-size:.82rem; } .management-nav-link i { width:auto; } }
+
 .btn-order { background: var(--nc-orange); border-color: var(--nc-orange); color: var(--nc-cream); }
 .btn-order:hover { background: #ac671e; border-color: #6f4c35; color: var(--nc-cream); }
 
@@ -266,6 +286,14 @@ html { scroll-behavior: smooth; }
 
 /* Ordering */
 .order-heading-band { min-height: 5.5rem; display: flex; align-items: center; background: #f3ece2; border-bottom: 1px solid rgba(74,52,40,.12); padding: 1rem 0; }
+.staff-order-status { padding: .45rem .7rem; border: 1px solid transparent; font-size: .75rem; font-weight: 700; }
+.staff-order-status.status-pending { color: #765400; background: #fff1c7; border-color: #f0d986; }
+.staff-order-status.status-confirmed { color: #174f91; background: #e0edff; border-color: #b8d2f5; }
+.staff-order-status.status-preparing { color: #5c388c; background: #efe5ff; border-color: #d5c0f2; }
+.staff-order-status.status-ready { color: #176347; background: #ddf3e8; border-color: #b8e2cd; }
+.staff-order-status.status-out_for_delivery { color: #944014; background: #ffeadc; border-color: #f3c7a7; }
+.staff-order-status.status-completed, .staff-order-status.status-delivered { color: #285d32; background: #e0f1df; border-color: #bdddbb; }
+.staff-order-status.status-cancelled, .staff-order-status.status-rejected, .staff-order-status.status-failed { color: #8e2929; background: #fbe3e3; border-color: #efc2c2; }
 .order-tracking-shell { background: #f3ece2; }
 .delivery-tracking-banner { padding: 1rem 1.2rem; border: 1px solid rgba(74,52,40,.14); border-radius: .5rem; background: #fff; box-shadow: 0 5px 18px rgba(36,34,31,.08); }
 .delivery-tracking-banner[hidden] { display: none; }
@@ -277,7 +305,7 @@ html { scroll-behavior: smooth; }
 .delivery-route-track { position: relative; height: 68px; display: flex; align-items: center; overflow: visible; }
 .delivery-route-track::before { content: ''; position: absolute; inset: auto 0; height: 4px; border-radius: 4px; background: #e8ddd0; }
 .delivery-route-progress { position: absolute; left: 0; height: 4px; width: 0; border-radius: 4px; background: var(--nc-orange); }
-.delivery-rider { position: absolute; z-index: 1; left: 0; bottom: 6px; width: 74px; height: 48px; object-fit: contain; overflow: visible; }
+.delivery-rider { position: absolute; z-index: 1; left: 0; bottom: 22px; width: 74px; height: 48px; object-fit: contain; overflow: visible; transform: translateX(28px); }
 .order-heading-band h1 { color: var(--nc-red); font-size: clamp(2rem, 3vw, 2.8rem); }
 .order-heading-band p:not(.order-eyebrow) { color: #62574f; }
 .order-eyebrow { color: var(--nc-orange); font-size: .75rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
@@ -614,7 +642,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--nc-orange) transparent; }
 .branch-directions { margin-left: auto; color: var(--nc-orange); font-size: .76rem; font-weight: 600; text-decoration: none; }
 .branch-directions:hover { color: var(--nc-red); text-decoration: underline; }
 .branch-empty { padding: 1rem; border: 1px dashed rgba(74,52,40,.25); border-radius: .4rem; color: #65584f; text-align: center; }
-.branch-map { position: sticky; top: 90px; z-index: 0; height: min(690px, calc(100vh - 120px)); min-height: 420px; overflow: hidden; border: 1px solid rgba(74,52,40,.16); border-radius: .5rem; background: #e6e1d8; box-shadow: 0 4px 18px rgba(36,34,31,.08); }
+.branch-map { position: sticky; z-index: 0; height: min(690px, calc(100vh - 120px)); min-height: 420px; overflow: hidden; border: 1px solid rgba(74,52,40,.16); border-radius: .5rem; background: #e6e1d8; box-shadow: 0 4px 18px rgba(36,34,31,.08); }
 .branch-map-credit { margin: .35rem 0 0; color: #746b64; font-size: .65rem; text-align: right; }
 .branch-map-credit a { color: inherit; }
 .branch-map-fallback { display: grid; height: 100%; margin: 0; padding: 2rem; place-items: center; color: #62574f; text-align: center; }

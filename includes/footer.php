@@ -1,4 +1,5 @@
 <?php require_once __DIR__ . '/auth_helpers.php'; ?>
+<?php if (in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true)): ?></div></div><?php endif; ?>
 <footer class="footer-nomcha mt-5">
   <div class="footer-main container<?= !in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true) ? ' has-signup' : '' ?>">
       <?php if (!in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true)): ?>

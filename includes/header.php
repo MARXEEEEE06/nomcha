@@ -6,6 +6,7 @@ $current     = basename($_SERVER['PHP_SELF']);
 $isLoggedIn  = !empty($_SESSION['user_id']);
 $displayName = $_SESSION['first_name'] ?? '';
 $isManagementRole = in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true);
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
 
 function navActive(string $file, string $current): string {
     return $file === $current ? ' active' : '';
@@ -24,7 +25,35 @@ function navActive(string $file, string $current): string {
   <link href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>" rel="stylesheet">
   <?= $pageStyles ?? '' ?>
 </head>
-<body>
+<body class="<?= $isManagementRole ? 'management-body' : '' ?>">
+
+<?php if ($isManagementRole): ?>
+<header class="management-topbar">
+  <a class="management-brand" href="admin.php"><img src="assets/namcha_korean_favicon.png" alt=""> <span>Nomcha</span></a>
+  <div class="dropdown">
+    <button class="btn management-user dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-person-circle me-2"></i><?= htmlspecialchars($displayName ?: 'User') ?></button>
+    <ul class="dropdown-menu dropdown-menu-end dropdown-menu-nomcha"><li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li></ul>
+  </div>
+</header>
+<div class="management-layout">
+  <aside class="management-sidebar" aria-label="Management navigation">
+    <div class="management-nav-label">Workspace</div>
+    <a class="management-nav-link<?= navActive('admin.php', $current) ?>" href="admin.php"><i class="bi bi-grid-1x2"></i>Dashboard</a>
+    <?php if (!$isAdmin): ?><a class="management-nav-link<?= navActive('staff-orders.php', $current) ?>" href="staff-orders.php"><i class="bi bi-receipt"></i>Incoming orders</a><?php endif; ?>
+    <a class="management-nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php"><i class="bi bi-book"></i>Menu management</a>
+    <a class="management-nav-link<?= navActive('team-inbox.php', $current) ?>" href="team-inbox.php"><i class="bi bi-inbox"></i>Team inbox</a>
+    <?php if ($isAdmin): ?>
+    <div class="management-nav-label mt-4">Administration</div>
+    <a class="management-nav-link<?= navActive('analytics.php', $current) ?>" href="analytics.php"><i class="bi bi-graph-up"></i>Analytics</a>
+    <a class="management-nav-link<?= navActive('audit-log.php', $current) ?>" href="audit-log.php"><i class="bi bi-clock-history"></i>Audit log</a>
+    <a class="management-nav-link<?= navActive('announcement.php', $current) ?>" href="announcement.php"><i class="bi bi-megaphone"></i>Announcements</a>
+    <a class="management-nav-link<?= navActive('employees.php', $current) ?>" href="employees.php"><i class="bi bi-people"></i>Employees</a>
+    <a class="management-nav-link<?= navActive('branches-management.php', $current) ?>" href="branches-management.php"><i class="bi bi-geo-alt"></i>Branches</a>
+    <a class="management-nav-link<?= navActive('promos.php', $current) ?>" href="promos.php"><i class="bi bi-tag"></i>Promos</a>
+    <?php endif; ?>
+  </aside>
+  <div class="management-content">
+<?php else: ?>
 
 <nav class="navbar navbar-expand-xl navbar-nomcha sticky-top" data-bs-theme="dark">
   <div class="container">
@@ -39,6 +68,7 @@ function navActive(string $file, string $current): string {
             <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Dashboard</a></li>
             <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
             <li class="nav-item"><a class="nav-link<?= navActive('analytics.php', $current) ?>" href="analytics.php">Analytics</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('audit-log.php', $current) ?>" href="audit-log.php">Audit log</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('announcement.php', $current) ?>" href="announcement.php">Announcements</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('employees.php', $current) ?>" href="employees.php">Employees</a></li>
@@ -85,6 +115,7 @@ function navActive(string $file, string $current): string {
     </div>
   </div>
 </nav>
+<?php endif; ?>
 <?php
 require_once __DIR__ . '/toasts.php';
 render_toasts($_SESSION['flash_toasts'] ?? []);
