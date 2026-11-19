@@ -1,5 +1,5 @@
 <?php
-require 'includes/auth_helpers.php'; require 'includes/db.php'; require_role($pdo, ['staff']);
+require 'includes/auth_helpers.php'; require 'includes/db.php'; require_once 'includes/audit_log.php'; require_role($pdo, ['staff']);
 if ($_SERVER['REQUEST_METHOD']!=='POST'||!csrf_check($_POST['csrf']??null)) { http_response_code(400); exit('Invalid request.'); }
 $orderId=filter_var($_POST['order_id']??null,FILTER_VALIDATE_INT); $action=(string)($_POST['action']??''); $actor=(int)$_SESSION['user_id'];
 if (!$orderId||!in_array($action,['status','cancel'],true)) { http_response_code(400); exit('Invalid order action.'); }
@@ -16,6 +16,7 @@ try {
         $pdo->prepare("UPDATE customer_orders SET status='cancelled' WHERE order_id=?")->execute([(int)$orderId]);
         $pdo->prepare("INSERT INTO staff_order_actions (order_id,user_id,event_type,from_status,to_status,cancellation_reason) VALUES (?,?,'cancelled',?,'cancelled',?)")
             ->execute([(int)$orderId,$actor,$current,$reason]);
+        write_audit_log($pdo,'order_cancelled','order',(int)$orderId,['status'=>$current],['status'=>'cancelled','reason'=>$reason]);
         $message='Order cancelled and reason recorded.';
     } else {
         $next=(string)($_POST['new_status']??'');
@@ -24,13 +25,14 @@ try {
             'confirmed'=>['preparing'],
             'preparing'=>['ready'],
             'ready'=>[(string)$order['fulfillment']==='delivery'?'out_for_delivery':'completed'],
-            'out_for_delivery'=>['completed'],
+            'out_for_delivery'=>[],
             default=>[],
         };
         if (!in_array($next,$allowed,true)) throw new DomainException('That status change is not available for this order. Refresh the list and try again.');
         $pdo->prepare('UPDATE customer_orders SET status=? WHERE order_id=?')->execute([$next,(int)$orderId]);
         $pdo->prepare("INSERT INTO staff_order_actions (order_id,user_id,event_type,from_status,to_status,cancellation_reason) VALUES (?,?,'status_changed',?,?,NULL)")
             ->execute([(int)$orderId,$actor,$current,$next]);
+        write_audit_log($pdo,'order_status_changed','order',(int)$orderId,['status'=>$current],['status'=>$next]);
         $message='Order status updated.';
     }
     $pdo->commit(); $_SESSION['flash_success']=$message;

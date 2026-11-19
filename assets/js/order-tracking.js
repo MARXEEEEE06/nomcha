@@ -5,6 +5,7 @@
   const averageSpeedKmh = 25;
   let animationRun = 0;
   const pageLoadedAt = Date.now();
+  let activeTrackingButton = null;
   const orderTabs = [...document.querySelectorAll('[data-order-tab]')];
   const orderRows = [...document.querySelectorAll('[data-order-group]')];
   orderTabs.forEach(tab => tab.addEventListener('click', () => {
@@ -23,7 +24,7 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[character]));
 
-  const renderTracking = button => {
+  const renderTracking = (button, scrollToBanner = true) => {
     const savedDistanceKm = Number(button.dataset.distanceKm);
     const knownDistance = button.dataset.distanceKnown === 'yes' && Number.isFinite(savedDistanceKm) && savedDistanceKm > 0;
     const safeDistanceKm = knownDistance ? savedDistanceKm : 5;
@@ -50,6 +51,7 @@
         <span class="delivery-route-label">Home</span>
       </div>`;
     banner.hidden = false;
+    activeTrackingButton = button;
     const currentRun = ++animationRun;
     document.querySelectorAll('[data-track-delivery]').forEach(control => {
       const selected = control === button;
@@ -66,17 +68,27 @@
 
       const endX = Math.max(0, track.clientWidth - rider.offsetWidth);
       const progressEndX = track.clientWidth;
-      rider.style.left = `${endX * initialRatio}px`;
-      progress.style.width = `${progressEndX * initialRatio}px`;
-      rider.animate([{ left: `${endX * initialRatio}px` }, { left: `${endX}px` }], {
-        duration: travelDurationMs - elapsed, easing: 'linear', fill: 'forwards',
+      const progressPositionX = progressEndX * initialRatio;
+      const riderPositionX = Math.min(endX, Math.max(0, progressPositionX - rider.offsetWidth));
+      const riderStartRatio = progressEndX > 0 ? Math.min(1, rider.offsetWidth / progressEndX) : 1;
+      const riderDelay = Math.max(0, (riderStartRatio - initialRatio) * travelDurationMs);
+      rider.style.left = `${riderPositionX}px`;
+      progress.style.width = `${progressPositionX}px`;
+      rider.animate([{ left: `${riderPositionX}px` }, { left: `${endX}px` }], {
+        delay: riderDelay, duration: Math.max(0, travelDurationMs - elapsed - riderDelay), easing: 'linear', fill: 'forwards',
       });
-      progress.animate([{ width: `${progressEndX * initialRatio}px` }, { width: `${progressEndX}px` }], {
+      progress.animate([{ width: `${progressPositionX}px` }, { width: `${progressEndX}px` }], {
         duration: travelDurationMs - elapsed, easing: 'linear', fill: 'forwards',
       });
     }));
-    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (scrollToBanner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && activeTrackingButton && !banner.hidden) {
+      renderTracking(activeTrackingButton, false);
+    }
+  });
 
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-track-delivery]');
@@ -84,6 +96,7 @@
       if (button.getAttribute('aria-expanded') === 'true') {
         animationRun++;
         banner.hidden = true;
+        activeTrackingButton = null;
         document.querySelectorAll('[data-track-delivery]').forEach(control => {
           control.setAttribute('aria-expanded', 'false');
           control.textContent = 'Track delivery';
