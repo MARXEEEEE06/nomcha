@@ -271,6 +271,29 @@ function send_application_status_email(string $to,string $applicantName,string $
     return true;
 }
 
+function send_order_in_transit_email(string $to, string $customerName, string $orderNumber): bool {
+    $config = nomcha_config();
+    $webhook = trim((string)($config['make_webhook_url'] ?? ''));
+    if ($webhook === '' || !filter_var($webhook, FILTER_VALIDATE_URL)) throw new RuntimeException('Make webhook is not configured.');
+    $fromEmail = (string)($config['mail_from_email'] ?? 'no-reply@example.com');
+    $fromName = (string)($config['mail_from_name'] ?? 'Nomcha');
+    $safeName = htmlspecialchars($customerName, ENT_QUOTES, 'UTF-8');
+    $safeOrderNumber = htmlspecialchars($orderNumber, ENT_QUOTES, 'UTF-8');
+    $subject = 'Your Nomcha order is on the way';
+    $text = "Hello {$customerName},\n\nYour order {$orderNumber} is in transit and on its way to you.\n\nThank you for ordering with Nomcha.";
+    $html = '<p>Hello ' . $safeName . ',</p><p>Your order <strong>' . $safeOrderNumber . '</strong> is in transit and on its way to you.</p><p>Thank you for ordering with Nomcha.</p>';
+    $payload = json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'order_in_transit','route'=>'notification'], JSON_UNESCAPED_SLASHES);
+    if ($payload === false) throw new RuntimeException('Could not prepare the order status email.');
+    $headers = "Content-Type: application/json\r\n";
+    $token = trim((string)($config['make_webhook_token'] ?? ''));
+    if ($token !== '') $headers .= 'x-make-apikey: ' . $token . "\r\n";
+    $context = stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>$payload,'timeout'=>10,'ignore_errors'=>true]]);
+    $response = @file_get_contents($webhook, false, $context);
+    $statusLine = $http_response_header[0] ?? '';
+    if ($response === false || !preg_match('/\s2\d\d\s/', $statusLine)) throw new RuntimeException('Order status email could not be delivered through Make.');
+    return true;
+}
+
 function notify_nomcha_users(string $purpose,string $subject,string $message,string $path): void {
     global $pdo;
     $users=$pdo->query("SELECT s.email_addr, i.first_name FROM email_subscriptions s LEFT JOIN user_credentials c ON LOWER(c.email_addr)=s.email_addr AND c.is_active=1 AND c.role='customer' LEFT JOIN user_info i ON i.user_id=c.user_id WHERE s.unsubscribed_at IS NULL")->fetchAll();
