@@ -3,13 +3,7 @@ require 'includes/auth_helpers.php';
 require 'includes/db.php';
 $homeRole = current_role($pdo);
 if ($homeRole === 'admin') { header('Location: admin.php'); exit; }
-if (in_array($homeRole, ['staff', 'admin'], true)) {
-    $pageTitle = 'Management';
-    require 'includes/header.php';
-    ?>
-    <main class="container py-5 management-home"><div class="mb-4"><p class="text-uppercase small fw-semibold text-secondary mb-1"><?=e(ucfirst($homeRole))?> workspace</p><h1>Management</h1><p class="text-secondary">Choose a tool available to your account.</p></div><div class="row g-4"><div class="col-md-6"><a class="management-card" href="staff-orders.php"><span class="management-card-icon"><i class="bi bi-receipt"></i></span><h2>Incoming orders</h2><p>Review customer orders and update their status.</p></a></div><div class="col-md-6"><a class="management-card" href="menu-management.php"><span class="management-card-icon"><i class="bi bi-card-list"></i></span><h2>Menu management</h2><p>View, add, edit, and schedule menu items.</p></a></div><?php if ($homeRole === 'admin'): ?><div class="col-md-6"><a class="management-card" href="employees.php"><span class="management-card-icon"><i class="bi bi-people"></i></span><h2>Employee management</h2><p>Manage employee accounts and access.</p></a></div><?php endif; ?></div></main>
-    <?php require 'includes/footer.php'; exit;
-}
+if ($homeRole === 'staff') { header('Location: admin.php'); exit; }
 $pageTitle = 'Home';
 require 'includes/header.php';
 
@@ -147,7 +141,7 @@ HTML;
 <section class="container py-5 home-section">
   <div class="text-center mb-5">
     <h2 class="section-title">Our Signature Favorites</h2>
-    <p class="text-secondary mb-0">Top ordered items and options from the last two months.</p>
+    <p class="text-secondary mb-0">A few Nomcha favorites to explore.</p>
   </div>
 
   <?php if ($dbError): ?>
@@ -170,11 +164,10 @@ HTML;
             <div class="card-body">
               <h5 class="card-title"><?= htmlspecialchars($item['name']) ?></h5>
               <p class="card-text small text-secondary"><?= htmlspecialchars($item['description'] ?? '') ?></p>
+              <?php if(!empty($item['popular_options'])): ?><div class="small favorite-popular-options"><strong>Popular options</strong><ul class="mb-2 ps-3"><?php foreach($item['popular_options'] as $optionName=>$optionCount): ?><li><?=htmlspecialchars((string)$optionName)?></li><?php endforeach; ?></ul></div><?php endif; ?>
               <?php if ($item['price'] > 0): ?>
-                <span class="item-price">&#8369;<?= number_format($item['price'], 2) ?></span>
+                <span class="item-price favorite-item-price">&#8369;<?= number_format($item['price'], 2) ?></span>
               <?php endif; ?>
-              <p class="small text-secondary mt-2 mb-1"><?=number_format((int)$item['sold'])?> ordered in 2 months</p>
-              <?php if($item['popular_options']): ?><div class="small"><strong>Popular options</strong><ul class="mb-0 ps-3"><?php foreach($item['popular_options'] as $optionName=>$optionCount): ?><li><?=htmlspecialchars((string)$optionName)?> <span class="text-secondary">(<?=number_format((int)$optionCount)?>)</span></li><?php endforeach; ?></ul></div><?php endif; ?>
             </div>
           </div>
           </a>

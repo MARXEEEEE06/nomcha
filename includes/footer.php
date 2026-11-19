@@ -7,11 +7,11 @@
         <form class="footer-subscribe d-flex gap-2" action="subscribe.php" method="post"><input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>"><input type="email" name="email" class="form-control border-0" placeholder="Email Address" aria-label="Email Address" autocomplete="email" maxlength="255" required><button type="submit" class="btn btn-login rounded-0 px-4">Subscribe</button></form>
       </div>
       <?php endif; ?>
-      <nav class="footer-links" aria-label="Footer navigation">
+      <?php if (!in_array(($_SESSION['role'] ?? ''), ['staff', 'admin'], true)): ?><nav class="footer-links" aria-label="Footer navigation">
         <ul class="list-unstyled mb-0"><li class="mb-3"><a href="menu.php">Menu</a></li><li><a href="branches.php">Branches</a></li></ul>
         <ul class="list-unstyled mb-0"><li class="mb-3"><a href="order.php">Order Now</a></li><li class="mb-3"><a href="our-story.php">Our Story</a></li><li><a href="promos.php">Promos</a></li></ul>
         <ul class="list-unstyled mb-0"><li class="mb-3"><a href="careers.php">Careers</a></li><li class="mb-3"><a href="contact.php">Contact Us</a></li><li class="mb-3"><a href="terms-of-use.php">Terms of Use</a></li><li><a href="legal.php">Legal</a></li></ul>
-      </nav>
+      </nav><?php endif; ?>
   </div>
   <div class="footer-bar"><div class="container d-flex flex-wrap justify-content-between align-items-center gap-3 py-3">
     <span class="small">Copyright <?= date('Y') ?> Nomcha. All rights reserved.</span>

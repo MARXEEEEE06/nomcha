@@ -14,6 +14,8 @@ The repository includes a `Dockerfile` for the PHP application. In Aiven, select
 
 The app writes career resumes, employee photos, and promotion images under `/var/www/html/uploads`. Container filesystems may be replaced during redeploys, so attach persistent storage at `/var/www/html/uploads` if those uploaded files must survive deployments. Menu images stored in the database do not need this volume.
 
+Apply `database/migrations/20261119_branches_management.sql` once to an existing database before using branch management. It creates the branch and staff-assignment tables and imports the current 150 branch locations while preserving their IDs.
+
 ## Netlify
 
 The app reads the same settings from Netlify environment variables (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_SSL_CA`, `SITE_BASE_URL`, `OTP_PEPPER`, and optional mail/webhook settings). Add them in the Netlify site's environment variable settings; do not commit secrets or put them in `netlify.toml`.

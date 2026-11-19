@@ -64,6 +64,9 @@
 .favorite-slide { flex:0 0 min(280px,82vw); scroll-snap-align:start; }
 .favorite-slide>a { display:block; height:100%; }
 .favorite-slide .item-card { height:100%; }
+.favorite-slide .card-body { display:flex; flex-direction:column; }
+.favorite-slide .favorite-item-price { margin-top:auto; padding-top:.75rem; }
+.favorite-popular-options { color:var(--nc-ink); }
 .favorites-arrow { flex:0 0 2.75rem; width:2.75rem; height:2.75rem; border:1px solid rgba(24,4,4,.2); border-radius:50%; background:#fffdf9; color:var(--nc-red); }
 .favorites-arrow:hover,.favorites-arrow:focus-visible { background:var(--nc-red); color:#fff; }
 @media(max-width:575.98px) { .favorites-slider-wrap { gap:.4rem; } .favorites-arrow { flex-basis:2.25rem;width:2.25rem;height:2.25rem; } }
@@ -233,6 +236,12 @@ html { scroll-behavior: smooth; }
 .menu-item-card-link { color: inherit; text-decoration: none; transition: border-color .18s, box-shadow .18s, transform .18s; }
 .menu-item-card-link:hover, .menu-item-card-link:focus-visible { border-color: var(--nc-orange); box-shadow: 0 5px 18px rgba(36,34,31,.12); color: inherit; transform: translateY(-2px); outline: none; }
 .menu-item-img { height: 210px; padding: 1rem; transition: var(--nc-hover-transition);} /* background: #fff; } */
+.menu-image-loading { position: relative; display: block; overflow: hidden; background: var(--nc-cream); }
+.menu-image-loading .menu-item-img { position: relative; display: block; }
+.menu-image-skeleton { position: absolute; inset: 0; background: linear-gradient(100deg, #eee7dd 20%, #faf6ef 40%, #eee7dd 60%); background-size: 200% 100%; animation: menu-skeleton-shimmer 1.35s ease-in-out infinite; }
+.menu-image-loading.is-loaded .menu-image-skeleton { display: none; }
+@keyframes menu-skeleton-shimmer { to { background-position-x: -200%; } }
+@media (prefers-reduced-motion: reduce) { .menu-image-skeleton { animation: none; } }
 .menu-item-img:hover { transition: var(--nc-hover-transition); transform: scale(var(--nc-hover-scale)); }
 .menu-item-name { text-transform: uppercase; color: var(--nc-ink); font-size: 1rem; }
 .menu-item-price { color: var(--nc-orange); font-weight: 700; font-size: 1.1rem; }

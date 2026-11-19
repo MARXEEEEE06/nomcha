@@ -1,11 +1,12 @@
 <?php
 require 'includes/auth_helpers.php';
 require 'includes/db.php';
+require_once 'includes/branch_helpers.php';
 require_customer($pdo);
 
 $pageTitle = 'Order Online';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
-$branches = json_decode((string)file_get_contents(__DIR__ . '/assets/branches-data.json'), true) ?: [];
+$branches = get_public_branches($pdo);
 $savedAddresses = [];
 $selectedAddress = null;
 $selectedBranch = null;

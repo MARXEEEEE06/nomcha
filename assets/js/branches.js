@@ -97,7 +97,7 @@
           `<strong>${escapeHtml(branch.name)}</strong><br>${escapeHtml(branch.address)}<br><a href="${directionsUrl(branch)}" target="_blank" rel="noopener noreferrer">Get directions</a>`
         );
         marker.addTo(markerLayer);
-        markers.set(branch.id, marker);
+        markers.set(String(branch.id), marker);
       });
       if (visible.length) {
         const points = visible.map(branch => [branch.lat, branch.lng]);
@@ -122,12 +122,7 @@
     if (marker && map) {
       results.querySelectorAll('.branch-card.is-active').forEach(active => active.classList.remove('is-active'));
       card.classList.add('is-active');
-      if (typeof markerLayer.zoomToShowLayer === 'function') {
-        markerLayer.zoomToShowLayer(marker, () => marker.openPopup());
-      } else {
-        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 14));
-        marker.openPopup();
-      }
+      map.setView(marker.getLatLng(), 15, { animate: false });
     }
   });
   results.addEventListener('keydown', event => {
@@ -201,13 +196,14 @@
   });
 
   if (window.L && document.getElementById('branch-map')) {
-    map = L.map('branch-map', { scrollWheelZoom: true }).setView([14.5948, 121.0584], 12);
+    const philippinesBounds = L.latLngBounds([[4.5, 116.9], [21.2, 126.7]]);
+    map = L.map('branch-map', { scrollWheelZoom: true, maxBounds: philippinesBounds, maxBoundsViscosity: 1.0, minZoom: 5, maxZoom: 18 }).setView([14.5948, 121.0584], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
     }).addTo(map);
     markerLayer = typeof L.markerClusterGroup === 'function'
-      ? L.markerClusterGroup({ showCoverageOnHover: false, spiderfyOnMaxZoom: true }).addTo(map)
+      ? L.markerClusterGroup({ showCoverageOnHover: false, spiderfyOnMaxZoom: true, disableClusteringAtZoom: 14 }).addTo(map)
       : L.layerGroup().addTo(map);
   } else {
     document.getElementById('branch-map').innerHTML = '<p class="branch-map-fallback">The interactive map could not load. Use each branch’s directions link to open a map.</p>';

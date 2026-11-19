@@ -3,7 +3,7 @@ require 'includes/auth_helpers.php'; require 'includes/db.php'; require_once 'in
 if($_SERVER['REQUEST_METHOD']==='POST' && !csrf_check($_POST['csrf']??null)){http_response_code(400);exit('Invalid request token.');}
 if($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['update_application'])){
  $id=(int)($_POST['application_id']??0);$next=(string)($_POST['status']??'');$assigned=trim((string)($_POST['assigned_to']??''));$notes=trim((string)($_POST['staff_notes']??''));$allowed=['new','reviewing','interview','offered','hired','rejected','withdrawn'];
- $validAssignee=$assigned===''||($assigned!==(string)$uid&&ctype_digit($assigned));
+ $validAssignee=$assigned===''||ctype_digit($assigned);
  if($validAssignee&&$assigned!==''){$check=$pdo->prepare("SELECT 1 FROM user_credentials WHERE user_id=? AND role='staff' AND is_active=1");$check->execute([(int)$assigned]);$validAssignee=(bool)$check->fetchColumn();}
  $get=$pdo->prepare('SELECT status,email,first_name,last_name,position_applied FROM careers_applications WHERE application_id=?');$get->execute([$id]);$application=$get->fetch();
  $current=(string)($application['status']??'');$terminal=['hired','rejected','withdrawn'];
@@ -20,22 +20,22 @@ if($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['update_application'])){
 }
 if($_SERVER['REQUEST_METHOD']==='POST'){
  if(isset($_POST['read_event']))$pdo->prepare('INSERT IGNORE INTO team_inbox_reads(event_id,user_id) VALUES(?,?)')->execute([(int)$_POST['read_event'],$uid]);
- if(isset($_POST['update_application'])){$id=(int)$_POST['application_id'];$st=$_POST['status'];$assigned=trim((string)($_POST['assigned_to']??''));$allowed=['new','reviewing','interview','offered','hired','rejected','withdrawn'];$validAssignee=$assigned===''||($assigned!==(string)$uid&&ctype_digit($assigned));if($validAssignee&&$assigned!==''){$check=$pdo->prepare("SELECT 1 FROM user_credentials WHERE user_id=? AND role='staff' AND is_active=1");$check->execute([(int)$assigned]);$validAssignee=(bool)$check->fetchColumn();}if(in_array($st,$allowed,true)&&$validAssignee)$pdo->prepare('UPDATE careers_applications SET status=?,assigned_to=?,staff_notes=? WHERE application_id=?')->execute([$st,$assigned!==''?(int)$assigned:null,trim($_POST['staff_notes']??''),$id]);}
- if(isset($_POST['update_contact'])){$id=(int)$_POST['contact_id'];$st=$_POST['status'];$assigned=trim((string)($_POST['assigned_to']??''));$validAssignee=$assigned===''||($assigned!==(string)$uid&&ctype_digit($assigned));if($validAssignee&&$assigned!==''){$check=$pdo->prepare("SELECT 1 FROM user_credentials WHERE user_id=? AND role='staff' AND is_active=1");$check->execute([(int)$assigned]);$validAssignee=(bool)$check->fetchColumn();}if(in_array($st,['new','open','waiting','resolved','closed'],true)&&$validAssignee)$pdo->prepare('UPDATE contact_submissions SET status=?,priority=?,assigned_to=?,staff_notes=? WHERE contact_id=?')->execute([$st,$_POST['priority']==='high'?'high':'normal',$assigned!==''?(int)$assigned:null,trim($_POST['staff_notes']??''),$id]);}
+ if(isset($_POST['update_application'])){$id=(int)$_POST['application_id'];$st=$_POST['status'];$assigned=trim((string)($_POST['assigned_to']??''));$allowed=['new','reviewing','interview','offered','hired','rejected','withdrawn'];$validAssignee=$assigned===''||ctype_digit($assigned);if($validAssignee&&$assigned!==''){$check=$pdo->prepare("SELECT 1 FROM user_credentials WHERE user_id=? AND role='staff' AND is_active=1");$check->execute([(int)$assigned]);$validAssignee=(bool)$check->fetchColumn();}if(in_array($st,$allowed,true)&&$validAssignee)$pdo->prepare('UPDATE careers_applications SET status=?,assigned_to=?,staff_notes=? WHERE application_id=?')->execute([$st,$assigned!==''?(int)$assigned:null,trim($_POST['staff_notes']??''),$id]);}
+ if(isset($_POST['update_contact'])){$id=(int)$_POST['contact_id'];$st=$_POST['status'];$assigned=trim((string)($_POST['assigned_to']??''));$validAssignee=$assigned===''||ctype_digit($assigned);if($validAssignee&&$assigned!==''){$check=$pdo->prepare("SELECT 1 FROM user_credentials WHERE user_id=? AND role='staff' AND is_active=1");$check->execute([(int)$assigned]);$validAssignee=(bool)$check->fetchColumn();}if(in_array($st,['new','open','waiting','resolved','closed'],true)&&$validAssignee){$pdo->prepare('UPDATE contact_submissions SET status=?,priority=?,assigned_to=?,staff_notes=? WHERE contact_id=?')->execute([$st,$_POST['priority']==='high'?'high':'normal',$assigned!==''?(int)$assigned:null,trim($_POST['staff_notes']??''),$id]);$_SESSION['flash_toasts'][]=['kind'=>'success','text'=>'Feedback review saved.'];}}
  header('Location: team-inbox.php?tab='.rawurlencode($_POST['tab']??'activity'));exit;
 }
 $tab=$_GET['tab']??'activity';if(!in_array($tab,['activity','applications','feedback'],true))$tab='activity';
-$staff=$pdo->prepare("SELECT c.user_id, i.first_name, i.last_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.role='staff' AND c.is_active=1 AND c.user_id<>? ORDER BY i.first_name");$staff->execute([$uid]);$staff=$staff->fetchAll();
+$staff=$pdo->prepare("SELECT c.user_id, i.first_name, i.last_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.role='staff' AND c.is_active=1 ORDER BY i.first_name");$staff->execute();$staff=$staff->fetchAll();
 $filters=['status'=>trim((string)($_GET['status']??'')),'assigned'=>trim((string)($_GET['assigned']??'')),'q'=>trim((string)($_GET['q']??'')),'priority'=>trim((string)($_GET['priority']??'')),'event'=>trim((string)($_GET['event']??''))];
 $applicationSql='SELECT * FROM careers_applications WHERE 1=1';$applicationArgs=[];
 if(in_array($filters['status'],['new','reviewing','interview','offered','hired','rejected','withdrawn'],true)){$applicationSql.=' AND status=?';$applicationArgs[]=$filters['status'];}
-if($filters['assigned']==='unassigned')$applicationSql.=' AND assigned_to IS NULL';elseif(ctype_digit($filters['assigned'])){$applicationSql.=' AND assigned_to=?';$applicationArgs[]=(int)$filters['assigned'];}
+if($filters['assigned']==='unassigned')$applicationSql.=' AND (assigned_to IS NULL OR assigned_to=0)';elseif(ctype_digit($filters['assigned'])){$applicationSql.=' AND assigned_to=?';$applicationArgs[]=(int)$filters['assigned'];}
 if($filters['q']!==''){$applicationSql.=' AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR position_applied LIKE ?)';array_push($applicationArgs,...array_fill(0,4,'%'.$filters['q'].'%'));}
 $applicationSql.=' ORDER BY created_at DESC LIMIT 200';$applicationStmt=$pdo->prepare($applicationSql);$applicationStmt->execute($applicationArgs);$applications=$applicationStmt->fetchAll();
 $contactSql='SELECT * FROM contact_submissions WHERE 1=1';$contactArgs=[];
 if(in_array($filters['status'],['new','open','waiting','resolved','closed'],true)){$contactSql.=' AND status=?';$contactArgs[]=$filters['status'];}
 if(in_array($filters['priority'],['normal','high'],true)){$contactSql.=' AND priority=?';$contactArgs[]=$filters['priority'];}
-if($filters['assigned']==='unassigned')$contactSql.=' AND assigned_to IS NULL';elseif(ctype_digit($filters['assigned'])){$contactSql.=' AND assigned_to=?';$contactArgs[]=(int)$filters['assigned'];}
+if($filters['assigned']==='unassigned')$contactSql.=' AND (assigned_to IS NULL OR assigned_to=0)';elseif(ctype_digit($filters['assigned'])){$contactSql.=' AND assigned_to=?';$contactArgs[]=(int)$filters['assigned'];}
 if($filters['q']!==''){$contactSql.=' AND (full_name LIKE ? OR email LIKE ? OR subject LIKE ? OR message LIKE ?)';array_push($contactArgs,...array_fill(0,4,'%'.$filters['q'].'%'));}
 $contactSql.=' ORDER BY created_at DESC LIMIT 200';$contactStmt=$pdo->prepare($contactSql);$contactStmt->execute($contactArgs);$contacts=$contactStmt->fetchAll();
 $eventSql="SELECT e.*,r.read_at FROM team_inbox_events e LEFT JOIN team_inbox_reads r ON r.event_id=e.event_id AND r.user_id=? WHERE e.audience IN ('all',?, 'staff')";$eventArgs=[$uid,$role];
@@ -80,11 +80,17 @@ document.addEventListener('click',event=>{
   if(save){
     const form=document.getElementById(save.dataset.formId);if(!form)return;
     const status=form.querySelector('[data-app-status]');
-    if(!status||status.value===status.dataset.originalStatus){form.requestSubmit();return;}
+    const assignment=form.querySelector('[name="assigned_to"]');
+    const changedStatus=status&&status.value!==status.dataset.originalStatus;
+    const originalAssignment=assignment?[...assignment.options].find(option=>option.defaultSelected)?.value||'':'';
+    const changedAssignment=assignment&&assignment.value!==originalAssignment;
+    if(!changedStatus&&!changedAssignment){form.requestSubmit();return;}
     pendingAppForm=form;pendingReviewModal=bootstrap.Modal.getOrCreateInstance(document.querySelector(save.dataset.reviewModal));
+    confirmElement.querySelector('.modal-body').textContent=changedStatus?'Apply the selected status and notify the applicant by email?':'Assign this application to the selected staff member?';
     pendingReviewModal.hide();window.setTimeout(()=>confirmModal?.show(),180);return;
   }
   if(event.target.closest('[data-confirm-submit]')&&pendingAppForm){confirmModal.hide();pendingAppForm.requestSubmit();pendingAppForm=null;return;}
   if(event.target.closest('[data-confirm-cancel]')&&pendingReviewModal){confirmModal.hide();window.setTimeout(()=>pendingReviewModal.show(),180);}
 });
 </script><?php require 'includes/footer.php'; ?>
+

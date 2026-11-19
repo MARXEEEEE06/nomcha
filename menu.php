@@ -43,7 +43,7 @@ function renderItems(array $items): void {
         $itemName = htmlspecialchars($it['name'], ENT_QUOTES, 'UTF-8');
         echo '<div class="col"><a class="menu-item-card menu-item-card-link d-block h-100 text-center" href="order.php#order-category-' . $categoryId . '">';
         if (!empty($it['image_url'])) {
-            echo '<img src="' . htmlspecialchars($it['image_url'], ENT_QUOTES, 'UTF-8') . '" class="menu-item-img mb-3" alt="' . $itemName . '">';
+            echo '<span class="menu-image-loading mb-3"><span class="menu-image-skeleton" aria-hidden="true"></span><img src="' . htmlspecialchars($it['image_url'], ENT_QUOTES, 'UTF-8') . '" class="menu-item-img" alt="' . $itemName . '" loading="lazy"></span>';
         } else {
             echo '<div class="menu-item-placeholder mb-3"><i class="bi bi-egg-fried"></i></div>';
         }
@@ -101,9 +101,9 @@ function renderItems(array $items): void {
                 <div class="d-flex align-items-center justify-content-between">
                   <a class="nav-link flex-grow-1" href="#cat-<?= $cat['category_id'] ?>"><?= htmlspecialchars($cat['name']) ?></a>
                   <button class="btn btn-sm menu-toggle" type="button"
-                          data-bs-target="#sub-<?= $cat['category_id'] ?>"
-                          onclick="const panel=document.getElementById('sub-<?= (int)$cat['category_id'] ?>');const expanded=this.getAttribute('aria-expanded')==='true';this.setAttribute('aria-expanded',String(!expanded));panel.hidden=expanded;panel.classList.toggle('show',!expanded);"
-                          aria-expanded="true" aria-label="Toggle <?= htmlspecialchars($cat['name']) ?>">
+                          data-bs-toggle="collapse" data-bs-target="#sub-<?= (int)$cat['category_id'] ?>"
+                          aria-expanded="true" aria-controls="sub-<?= (int)$cat['category_id'] ?>"
+                          aria-label="Toggle <?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?> subcategories">
                     <i class="bi bi-chevron-up"></i>
                   </button>
                 </div>
@@ -155,6 +155,15 @@ function renderItems(array $items): void {
 $pageScripts = <<<'HTML'
 <script>
 const menuSections = [...document.querySelectorAll('[data-menu-category]')];
+document.querySelectorAll('.menu-image-loading img').forEach(image => {
+  const wrapper = image.parentElement;
+  const loaded = () => wrapper.classList.add('is-loaded');
+  if (image.complete && image.naturalWidth > 0) loaded();
+  else {
+    image.addEventListener('load', loaded, { once: true });
+    image.addEventListener('error', () => wrapper.classList.add('is-loaded'), { once: true });
+  }
+});
 const menuLinks = [...document.querySelectorAll('#menu-sidebar a[href^="#cat-"], .menu-pills a[href^="#cat-"]')];
 let selectedMenuCategory = null;
 const showMenuCategory = id => {
@@ -175,8 +184,7 @@ const showMenuCategory = id => {
   history.replaceState(null, '', `#cat-${id}`);
 };
 menuLinks.forEach(link => link.addEventListener('click', event => { event.preventDefault(); showMenuCategory(link.hash.slice(5)); }));
-const initialMenuCategory = location.hash.startsWith('#cat-') ? location.hash.slice(5) : menuSections[0]?.dataset.menuCategory;
-if (initialMenuCategory) showMenuCategory(initialMenuCategory);
+if (location.hash.startsWith('#cat-')) showMenuCategory(location.hash.slice(5));
 </script>
 HTML;
 require 'includes/footer.php';

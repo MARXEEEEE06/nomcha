@@ -35,20 +35,23 @@ function navActive(string $file, string $current): string {
 
     <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav me-auto mb-2 mb-xl-0">
-            <li class="nav-item"><a class="nav-link<?= navActive('index.php', $current) ?>" href="index.php">Home</a></li>
             <?php if ($isManagementRole): ?>
-            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
             <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Dashboard</a></li>
+            <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
             <li class="nav-item"><a class="nav-link<?= navActive('analytics.php', $current) ?>" href="analytics.php">Analytics</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('announcement.php', $current) ?>" href="announcement.php">Announcements</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('employees.php', $current) ?>" href="employees.php">Employees</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('branches-management.php', $current) ?>" href="branches-management.php">Branches</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('team-inbox.php', $current) ?>" href="team-inbox.php">Team inbox</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('promos.php', $current) ?>" href="promos.php">Promos</a></li>
             <?php else: ?>
-            <li class="nav-item"><a class="nav-link<?= navActive('admin.php', $current) ?>" href="admin.php">Management</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('staff-orders.php', $current) ?>" href="staff-orders.php">Incoming orders</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('menu-management.php', $current) ?>" href="menu-management.php">Menu management</a></li>
+            <li class="nav-item"><a class="nav-link<?= navActive('team-inbox.php', $current) ?>" href="team-inbox.php">Team inbox</a></li>
             <?php endif; ?>
             <?php else: ?>
+            <li class="nav-item"><a class="nav-link<?= navActive('index.php', $current) ?>" href="index.php">Home</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('menu.php', $current) ?>" href="menu.php">Menu</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('our-story.php', $current) ?>" href="our-story.php">Our Story</a></li>
             <li class="nav-item"><a class="nav-link<?= navActive('branches.php', $current) ?>" href="branches.php">Branches</a></li>
@@ -71,15 +74,6 @@ function navActive(string $file, string $current): string {
               <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i>My account</a></li>
               <li><a class="dropdown-item" href="order.php?view=orders"><i class="bi bi-receipt me-2"></i>My orders</a></li>
               <li><a class="dropdown-item" href="billing-address.php"><i class="bi bi-geo-alt me-2"></i>Billing Address</a></li>
-              <?php elseif (($_SESSION['role'] ?? '') === 'staff'): ?>
-              <li><a class="dropdown-item" href="admin.php"><i class="bi bi-speedometer2 me-2"></i>Management</a></li>
-              <li><a class="dropdown-item" href="staff-orders.php"><i class="bi bi-receipt me-2"></i>Incoming orders</a></li>
-              <li><a class="dropdown-item" href="menu-management.php"><i class="bi bi-card-list me-2"></i>Menu management</a></li>
-              <li><a class="dropdown-item" href="team-inbox.php"><i class="bi bi-inbox me-2"></i>Team inbox</a></li>
-              <?php elseif (($_SESSION['role'] ?? '') === 'admin'): ?>
-              <li><a class="dropdown-item" href="admin.php"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a></li>
-              <li><a class="dropdown-item" href="analytics.php"><i class="bi bi-graph-up me-2"></i>Analytics</a></li>
-              <li><a class="dropdown-item" href="announcement.php"><i class="bi bi-megaphone me-2"></i>Announcements</a></li>
               <?php endif; ?>
               <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
             </ul>
