@@ -14,3 +14,4 @@ ca.pem
 !/database/
 !/database/migrations/
 !/database/migrations/*.sql
+drive-download-*.zip

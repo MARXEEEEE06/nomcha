@@ -29,7 +29,7 @@ function navActive(string $file, string $current): string {
 
 <?php if ($isManagementRole): ?>
 <header class="management-topbar">
-  <a class="management-brand" href="admin.php"><img src="assets/namcha_korean_favicon.png" alt=""> <span>Nomcha</span></a>
+  <a class="management-brand" href="admin.php"><img src="assets\namcha_korean_nobg_favicon.png" alt=""> <span>Nomcha</span></a>
   <div class="dropdown">
     <button class="btn management-user dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-person-circle me-2"></i><?= htmlspecialchars($displayName ?: 'User') ?></button>
     <ul class="dropdown-menu dropdown-menu-end dropdown-menu-nomcha"><li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li></ul>
@@ -57,7 +57,7 @@ function navActive(string $file, string $current): string {
 
 <nav class="navbar navbar-expand-xl navbar-nomcha sticky-top" data-bs-theme="dark">
   <div class="container">
-    <a class="navbar-brand" href="index.php"><img class="navbar-logo" src="assets\namcha_korean_favicon.png">Nomcha</a>
+    <a class="navbar-brand" href="index.php"><img class="navbar-logo" src="assets\namcha_korean_nobg_favicon.png">Nomcha</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
