@@ -21,15 +21,19 @@ function auth_security_log(PDO $pdo, string $event, ?int $userId, ?string $purpo
 }
 
 function create_otp_challenge(PDO $pdo, string $email, string $purpose, ?int $userId, ?array $registrationData = null): int {
+    $supportedPurposes = ['registration', 'password_reset', 'account_deletion', 'email_change', 'login', 'password_change'];
+    if (!in_array($purpose, $supportedPurposes, true)) {
+        throw new InvalidArgumentException('Unsupported OTP purpose.');
+    }
     $pepper = otp_pepper();
     $pdo->exec('DELETE FROM auth_otp_challenges WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)');
-    $recent = $pdo->prepare('SELECT COUNT(*) FROM auth_otp_challenges WHERE email_addr = ? AND purpose = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ' . OTP_SEND_WINDOW_MINUTES . ' MINUTE)');
+    $recent = $pdo->prepare('SELECT COUNT(*) FROM auth_otp_challenges WHERE email = ? AND purpose = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ' . OTP_SEND_WINDOW_MINUTES . ' MINUTE)');
     $recent->execute([$email, $purpose]);
     if ((int)$recent->fetchColumn() >= OTP_MAX_SENDS_PER_WINDOW) {
         auth_security_log($pdo, 'otp_request', $userId, $purpose, 'rate_limited');
         throw new DomainException('Too many code requests. Please try again later.');
     }
-    $latest = $pdo->prepare('SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) FROM auth_otp_challenges WHERE email_addr = ? AND purpose = ? ORDER BY challenge_id DESC LIMIT 1');
+    $latest = $pdo->prepare('SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) FROM auth_otp_challenges WHERE email = ? AND purpose = ? ORDER BY challenge_id DESC LIMIT 1');
     $latest->execute([$email, $purpose]);
     $lastAgeSeconds = $latest->fetchColumn();
     if ($lastAgeSeconds !== false && (int)$lastAgeSeconds < OTP_RESEND_WAIT_SECONDS) {
@@ -37,18 +41,20 @@ function create_otp_challenge(PDO $pdo, string $email, string $purpose, ?int $us
         throw new DomainException('Please wait five minutes before requesting another code.');
     }
 
-    $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE email_addr = ? AND purpose = ? AND consumed_at IS NULL')
+    $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE email = ? AND purpose = ? AND consumed_at IS NULL')
         ->execute([$email, $purpose]);
     $otp = (string)random_int(100000, 999999);
     $hash = hash_hmac('sha256', $otp, $pepper);
     $data = $registrationData === null ? null : json_encode($registrationData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $pdo->prepare('INSERT INTO auth_otp_challenges (email_addr, purpose, user_id, otp_hash, registration_data, expires_at) VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . OTP_TTL_MINUTES . ' MINUTE))')
+    $pdo->prepare('INSERT INTO auth_otp_challenges (email, purpose, user_id, otp_hash, registration_data, expires_at) VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ' . OTP_TTL_MINUTES . ' MINUTE))')
         ->execute([$email, $purpose, $userId, $hash, $data]);
     $id = (int)$pdo->lastInsertId();
     $storedPurpose = $pdo->prepare('SELECT purpose FROM auth_otp_challenges WHERE challenge_id = ?');
     $storedPurpose->execute([$id]);
     if ($storedPurpose->fetchColumn() !== $purpose) {
-        $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ?')->execute([$id]);
+        // MySQL may coerce an unsupported ENUM value to an empty string in permissive mode.
+        // Remove the unusable row so it cannot pollute throttling or logs.
+        $pdo->prepare('DELETE FROM auth_otp_challenges WHERE challenge_id = ?')->execute([$id]);
         throw new RuntimeException('Apply the latest auth OTP migration before sending this verification code.');
     }
     auth_security_log($pdo, 'otp_request', $userId, $purpose, 'created', ['challenge_id' => $id]);
@@ -57,6 +63,7 @@ function create_otp_challenge(PDO $pdo, string $email, string $purpose, ?int $us
         send_otp_email($email, $purpose, $otp);
         auth_security_log($pdo, 'otp_delivery', $userId, $purpose, 'accepted_by_make', ['challenge_id' => $id]);
     } catch (Throwable $e) {
+        $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ? AND consumed_at IS NULL')->execute([$id]);
         auth_security_log($pdo, 'otp_delivery', $userId, $purpose, 'failed', ['challenge_id' => $id, 'reason' => substr($e->getMessage(), 0, 180)]);
         throw $e;
     }
@@ -64,7 +71,7 @@ function create_otp_challenge(PDO $pdo, string $email, string $purpose, ?int $us
 }
 
 function verify_otp_challenge(PDO $pdo, int $id, string $email, string $purpose, string $otp): ?array {
-    $stmt = $pdo->prepare('SELECT * FROM auth_otp_challenges WHERE challenge_id = ? AND email_addr = ? AND purpose = ? AND consumed_at IS NULL LIMIT 1');
+    $stmt = $pdo->prepare('SELECT * FROM auth_otp_challenges WHERE challenge_id = ? AND email = ? AND purpose = ? AND consumed_at IS NULL LIMIT 1');
     $stmt->execute([$id, $email, $purpose]);
     $challenge = $stmt->fetch();
     if (!$challenge) return null;
@@ -85,7 +92,9 @@ function verify_otp_challenge(PDO $pdo, int $id, string $email, string $purpose,
         auth_security_log($pdo, 'otp_verify', $userId, $purpose, 'invalid', ['challenge_id' => $id]);
         return null;
     }
-    $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ? AND consumed_at IS NULL')->execute([$id]);
+    $consume = $pdo->prepare('UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE challenge_id = ? AND consumed_at IS NULL');
+    $consume->execute([$id]);
+    if ($consume->rowCount() !== 1) return null;
     auth_security_log($pdo, 'otp_verify', $userId, $purpose, 'success', ['challenge_id' => $id]);
     return $challenge;
 }

@@ -59,6 +59,7 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         'registration' => 'Verify your Nomcha account',
         'account_deletion' => 'Confirm your Nomcha account deletion',
         'email_change' => 'Verify your new Nomcha email',
+        'password_change' => 'Verify your Nomcha password change',
         default => 'Your Nomcha password reset code',
     };
     $action = match ($purpose) {
@@ -66,6 +67,7 @@ function send_otp_email(string $to, string $purpose, string $otp): bool {
         'registration' => 'verify your email address',
         'account_deletion' => 'confirm your account deletion',
         'email_change' => 'verify your new email address',
+        'password_change' => 'change your Nomcha account password',
         default => 'reset your password',
     };
     $fromEmail = (string)($config['mail_from_email'] ?? 'no-reply@example.com');
@@ -229,24 +231,32 @@ function send_subscription_welcome_email(string $to, string $unsubscribeUrl): bo
     return true;
 }
 
-function send_notification_email(string $to,string $subject,string $text,string $purpose,?string $formattedHtml=null): bool {
+function send_notification_email(string $to,string $subject,string $text,string $purpose,?string $formattedHtml=null,bool $allowNonSubscribers=false): bool {
     global $pdo;
     $config=nomcha_config();$webhook=trim((string)($config['make_webhook_url']??''));
     if($webhook===''||!filter_var($webhook,FILTER_VALIDATE_URL))throw new RuntimeException('Make webhook is not configured.');
     $fromEmail=(string)($config['mail_from_email']??'no-reply@example.com');$fromName=(string)($config['mail_from_name']??'Nomcha');
-    $unsubscribe=$pdo->prepare('SELECT unsubscribe_token_hash FROM email_subscriptions WHERE email_addr=? AND unsubscribed_at IS NULL');
+    $unsubscribe=$pdo->prepare('SELECT unsubscribe_token_hash FROM email_subscriptions WHERE email=? AND unsubscribed_at IS NULL');
     $unsubscribe->execute([strtolower($to)]);
     $hash=(string)$unsubscribe->fetchColumn();
-    if ($hash === '') return false;
-    $unsubscribeUrl=nomcha_absolute_url('unsubscribe.php?token=' . rawurlencode($hash));
-    $text .= "\n\nTo stop receiving Nomcha email updates, unsubscribe here: {$unsubscribeUrl}";
+    if ($hash === '' && !$allowNonSubscribers) return false;
+    $unsubscribeUrl=$hash !== '' ? nomcha_absolute_url('unsubscribe.php?token=' . rawurlencode($hash)) : null;
+    if ($unsubscribeUrl !== null) $text .= "\n\nTo stop receiving Nomcha email updates, unsubscribe here: {$unsubscribeUrl}";
     $html=($formattedHtml!==null?$formattedHtml:nl2br(htmlspecialchars($text,ENT_QUOTES,'UTF-8')));
-    $html .= '<p><a href="' . htmlspecialchars($unsubscribeUrl,ENT_QUOTES,'UTF-8') . '">Unsubscribe from Nomcha email updates</a></p>';
+    if ($unsubscribeUrl !== null) $html .= '<p><a href="' . htmlspecialchars($unsubscribeUrl,ENT_QUOTES,'UTF-8') . '">Unsubscribe from Nomcha email updates</a></p>';
     $payload=json_encode(['to'=>$to,'from_email'=>$fromEmail,'from_name'=>$fromName,'subject'=>$subject,'text'=>$text,'html'=>$html,'purpose'=>'notify','route'=>'notification'],JSON_UNESCAPED_SLASHES);
     if($payload===false)throw new RuntimeException('Could not prepare the notification email.');
     $headers="Content-Type: application/json\r\n";$token=trim((string)($config['make_webhook_token']??''));if($token!=='')$headers.='x-make-apikey: '.$token."\r\n";
-    $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>$payload,'timeout'=>10,'ignore_errors'=>true]]);$response=@file_get_contents($webhook,false,$ctx);$status=$http_response_header[0]??'';
-    if($response===false||!preg_match('/\s2\d\d\s/',$status))throw new RuntimeException('Notification could not be delivered through Make.');return true;
+    $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>$headers,'content'=>$payload,'timeout'=>30,'ignore_errors'=>true]]);$response=@file_get_contents($webhook,false,$ctx);$status=$http_response_header[0]??'';
+    $responseBody=trim((string)$response);
+    $isSuccess=preg_match('/\s2\d\d\s/',$status)===1;
+    $bodyReportsFailure=preg_match('/^(could not send|failed|error)\b/i',$responseBody)===1;
+    if($response===false||!$isSuccess||$bodyReportsFailure){
+        $detail=$responseBody!==''?preg_replace('/\s+/u',' ',$responseBody):'Make did not return a response body.';
+        if(strlen($detail)>300)$detail=substr($detail,0,297).'...';
+        throw new RuntimeException($detail);
+    }
+    return true;
 }
 
 function send_application_status_email(string $to,string $applicantName,string $position,string $status): bool {
@@ -296,8 +306,8 @@ function send_order_in_transit_email(string $to, string $customerName, string $o
 
 function notify_nomcha_users(string $purpose,string $subject,string $message,string $path): void {
     global $pdo;
-    $users=$pdo->query("SELECT s.email_addr, i.first_name FROM email_subscriptions s LEFT JOIN user_credentials c ON LOWER(c.email_addr)=s.email_addr AND c.is_active=1 AND c.role='customer' LEFT JOIN user_info i ON i.user_id=c.user_id WHERE s.unsubscribed_at IS NULL")->fetchAll();
-    foreach($users as $user){try{$name=trim((string)($user['first_name']??''));send_notification_email((string)$user['email_addr'],$subject,'Hello'.($name!==''?' '.$name:'').",\n\n".$message."\n\nView details: ".nomcha_absolute_url($path),$purpose);}catch(Throwable $e){error_log('Nomcha notification email failed: '.$e->getMessage());}}
+    $users=$pdo->query("SELECT s.email, i.first_name FROM email_subscriptions s LEFT JOIN user_credentials c ON LOWER(c.email)=s.email AND c.is_active=1 AND c.role='customer' LEFT JOIN user_info i ON i.user_id=c.user_id WHERE s.unsubscribed_at IS NULL")->fetchAll();
+    foreach($users as $user){try{$name=trim((string)($user['first_name']??''));send_notification_email((string)$user['email'],$subject,'Hello'.($name!==''?' '.$name:'').",\n\n".$message."\n\nView details: ".nomcha_absolute_url($path),$purpose);}catch(Throwable $e){error_log('Nomcha notification email failed: '.$e->getMessage());}}
 }
 
 function notify_menu_item_reactivated(string $itemName, string $description = ''): void {

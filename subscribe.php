@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $token = bin2hex(random_bytes(32));
             $hash = hash('sha256', $token);
-            $stmt = $pdo->prepare('SELECT subscription_id, unsubscribed_at FROM email_subscriptions WHERE email_addr=?');
+            $stmt = $pdo->prepare('SELECT subscription_id, unsubscribed_at FROM email_subscriptions WHERE email=?');
             $stmt->execute([$email]);
             $existing = $stmt->fetch();
             if ($existing && $existing['unsubscribed_at'] === null) {
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($existing) {
                     $pdo->prepare('UPDATE email_subscriptions SET consented_at=NOW(), unsubscribed_at=NULL, unsubscribe_token_hash=? WHERE subscription_id=?')->execute([$hash, (int)$existing['subscription_id']]);
                 } else {
-                    $pdo->prepare('INSERT INTO email_subscriptions(email_addr, unsubscribe_token_hash) VALUES(?,?)')->execute([$email, $hash]);
+                    $pdo->prepare('INSERT INTO email_subscriptions(email, unsubscribe_token_hash) VALUES(?,?)')->execute([$email, $hash]);
                 }
                 try {
                     $url = nomcha_absolute_url('unsubscribe.php?token=' . rawurlencode($token));

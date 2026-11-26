@@ -1,7 +1,8 @@
 (() => {
   const banner = document.getElementById('delivery-tracking-banner');
   if (!banner) return;
-
+  const REAR_WHEEL_ANCHOR = 0.292; // rear wheel center as a fraction of scooter.svg width (246 / 842.4)
+  const FRONT_WHEEL_ANCHOR = 0.744; // front wheel center as a fraction of scooter.svg width
   const averageSpeedKmh = 25;
   let animationRun = 0;
   const pageLoadedAt = Date.now();
@@ -37,7 +38,7 @@
 
     banner.innerHTML = `
       <div class="delivery-tracking-heading">
-        <div><p class="order-eyebrow mb-1">Simulated delivery</p><h2 class="h5 mb-0">Rider route · ${orderNumber}</h2></div>
+        <div><p class="order-eyebrow mb-1">Tracking Delivery</p><h2 class="h5 mb-0">Rider route · ${orderNumber}</h2></div>
       </div>
       <p class="delivery-tracking-copy">${knownDistance
         ? `About ${safeDistanceKm.toFixed(1)} km · estimated ${etaMinutes} min at ${averageSpeedKmh} km/h average speed.`
@@ -66,17 +67,27 @@
       const progress = banner.querySelector('.delivery-route-progress');
       if (!track || !rider || !progress) return;
 
-      const endX = Math.max(0, track.clientWidth - rider.offsetWidth);
+      const rearWheelX = rider.offsetWidth * REAR_WHEEL_ANCHOR;
+      const frontWheelX = rider.offsetWidth * FRONT_WHEEL_ANCHOR;
+      const endX = Math.max(0, track.clientWidth - frontWheelX);
       const progressEndX = track.clientWidth;
       const progressPositionX = progressEndX * initialRatio;
-      const riderPositionX = Math.min(endX, Math.max(0, progressPositionX - rider.offsetWidth));
-      const riderStartRatio = progressEndX > 0 ? Math.min(1, rider.offsetWidth / progressEndX) : 1;
-      const riderDelay = Math.max(0, (riderStartRatio - initialRatio) * travelDurationMs);
+      const riderPositionX = Math.min(endX, progressPositionX - rearWheelX);
+      const riderStopProgressX = Math.max(0, progressEndX - frontWheelX + rearWheelX);
+      const riderProgressRemaining = Math.max(0, riderStopProgressX - progressPositionX);
+      const progressRemaining = Math.max(0, progressEndX - progressPositionX);
+      const riderDuration = progressRemaining > 0
+        ? (travelDurationMs - elapsed) * riderProgressRemaining / progressRemaining
+        : 0;
       rider.style.left = `${riderPositionX}px`;
       progress.style.width = `${progressPositionX}px`;
-      rider.animate([{ left: `${riderPositionX}px` }, { left: `${endX}px` }], {
-        delay: riderDelay, duration: Math.max(0, travelDurationMs - elapsed - riderDelay), easing: 'linear', fill: 'forwards',
-      });
+      if (riderDuration > 0) {
+        rider.animate([{ left: `${riderPositionX}px` }, { left: `${endX}px` }], {
+          duration: riderDuration, easing: 'linear', fill: 'forwards',
+        });
+      } else {
+        rider.style.left = `${endX}px`;
+      }
       progress.animate([{ width: `${progressPositionX}px` }, { width: `${progressEndX}px` }], {
         duration: travelDurationMs - elapsed, easing: 'linear', fill: 'forwards',
       });

@@ -5,7 +5,7 @@ $token = trim((string)($_REQUEST['token'] ?? ''));
 $validToken = preg_match('/^[a-f0-9]{64}$/', $token) === 1;
 $subscription = null;
 if ($validToken) {
-    $stmt = $pdo->prepare('SELECT subscription_id,email_addr,unsubscribed_at FROM email_subscriptions WHERE unsubscribe_token_hash IN (?,?)');
+    $stmt = $pdo->prepare('SELECT subscription_id,email,unsubscribed_at FROM email_subscriptions WHERE unsubscribe_token_hash IN (?,?)');
     $stmt->execute([hash('sha256', $token), $token]);
     $subscription = $stmt->fetch() ?: null;
 }
@@ -15,18 +15,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(400);
         $message = 'This unsubscribe link is invalid or has expired.';
     } elseif ($subscription['unsubscribed_at'] !== null) {
-        $message = e($subscription['email_addr']) . ' is already unsubscribed from Nomcha email updates.';
+        $message = e($subscription['email']) . ' is already unsubscribed from Nomcha email updates.';
     } else {
         $pdo->prepare('UPDATE email_subscriptions SET unsubscribed_at=NOW() WHERE subscription_id=? AND unsubscribed_at IS NULL')->execute([(int)$subscription['subscription_id']]);
-        $message = e($subscription['email_addr']) . ' has been unsubscribed from Nomcha email updates.';
+        $message = e($subscription['email']) . ' has been unsubscribed from Nomcha email updates.';
     }
 } elseif (!$subscription) {
     http_response_code(404);
     $message = 'This unsubscribe link is invalid or has expired.';
 } elseif ($subscription['unsubscribed_at'] !== null) {
-    $message = e($subscription['email_addr']) . ' is already unsubscribed from Nomcha email updates.';
+    $message = e($subscription['email']) . ' is already unsubscribed from Nomcha email updates.';
 } else {
-    $message = 'Unsubscribe ' . e($subscription['email_addr']) . ' from Nomcha email updates?';
+    $message = 'Unsubscribe ' . e($subscription['email']) . ' from Nomcha email updates?';
 }
 $pageTitle = 'Unsubscribe';
 require 'includes/header.php';

@@ -39,7 +39,7 @@ try {
     $pdo->commit(); $_SESSION['flash_success']=$message;
     if (!empty($notifyInTransit)) {
         try {
-            $emailQuery = $pdo->prepare("SELECT email_addr FROM user_credentials WHERE user_id=? AND is_active=1 AND role='customer' LIMIT 1");
+            $emailQuery = $pdo->prepare("SELECT email FROM user_credentials WHERE user_id=? AND is_active=1 AND role='customer' LIMIT 1");
             $emailQuery->execute([(int)$order['user_id']]);
             $customerEmail = (string)$emailQuery->fetchColumn();
             if ($customerEmail !== '') send_order_in_transit_email($customerEmail, (string)$order['customer_name'], (string)$order['order_number']);

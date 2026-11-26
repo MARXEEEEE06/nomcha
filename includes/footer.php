@@ -25,6 +25,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <?= $pageScripts ?? '' ?>
 <script>document.addEventListener('DOMContentLoaded',()=>{const button=document.querySelector('.btn-top');if(!button)return;const threshold=320;const update=()=>button.classList.toggle('is-visible',window.scrollY>=threshold);window.addEventListener('scroll',update,{passive:true});update();});</script>
+<script>document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('input[data-digits-only]').forEach(input=>{const sanitize=()=>{let digits=input.value.replace(/\D/g,'');if(input.hasAttribute('data-ph-mobile')&&digits.startsWith('63'))digits='0'+digits.slice(2);input.value=digits;};sanitize();input.addEventListener('input',sanitize);input.addEventListener('paste',()=>setTimeout(sanitize));});});</script>
 <script>document.addEventListener('DOMContentLoaded',()=>document.documentElement.classList.add('page-ready'));</script>
 </body>
 </html>
