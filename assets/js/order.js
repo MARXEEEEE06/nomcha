@@ -29,12 +29,11 @@
         .filter(entry => {
           const item = menuItems.get(entry.id);
           if (item.priceCents === null) return false;
-          if (item.fanverse) {
-            return Object.keys(entry.options.flavors || {}).length > 0
-              && Object.keys(entry.options.sides || {}).length > 0
-              && Boolean(entry.options.drink);
-          }
-          if (item.customOptions?.length) return item.customOptions.filter(group => group.required).every(group => Boolean((entry.options.choiceSelections || entry.options)[group.key]));
+          if (item.customOptions?.length) return item.customOptions.filter(group => group.minCount > 0).every(group => {
+            const value=(entry.options.choiceSelections || entry.options)[group.key];
+            const count=group.multiple&&value&&typeof value==='object'?Object.values(value).reduce((sum,amount)=>sum+(Number(amount)||0),0):(value?1:0);
+            return count>=group.minCount;
+          });
           return item.options.every(group => Boolean(entry.options[group.key]));
         });
     }
@@ -75,22 +74,33 @@
 
   const optionGroupCounts = group => Object.fromEntries(
     [...document.querySelectorAll(`[data-option-group-choice="${group}"]`)]
-      .map(row => [row.dataset.optionName, Number(row.querySelector('[data-option-count]').textContent) || 0])
+       .map(row => [row.dataset.optionId, Number(row.querySelector('[data-option-count]').textContent) || 0])
       .filter(([, count]) => count > 0)
   );
 
   const optionAddOnCents = (item, options) => {
     if (item?.customOptions?.length) return item.customOptions.reduce((total, group) => {
       const selected = (options?.choiceSelections || options)?.[group.key];
-      if (group.multiple && selected && typeof selected === 'object') return total + Object.entries(selected).reduce((sum, [name, count]) => sum + (group.choices.find(choice => choice.name === name)?.priceCents || 0) * Number(count), 0);
-      const choice = group.choices.find(option => option.name === selected);
+      if (group.multiple && selected && typeof selected === 'object') return total + Object.entries(selected).reduce((sum, [id, count]) => sum + (group.choices.find(choice => String(choice.id ?? choice.name) === String(id))?.priceCents || 0) * Number(count), 0);
+      const choice = group.choices.find(option => String(option.id ?? option.name) === String(selected));
       return total + (choice?.priceCents || 0);
     }, 0);
-    if (!item?.fanverse) return 0;
-    return Object.entries(options?.sides || {}).reduce((total, [name, count]) => {
-      const side = item.fanverse.sides.find(choice => choice.name === name);
-      return total + (side?.priceCents || 0) * (Number(count) || 0);
-    }, 0);
+    return 0;
+  };
+
+  const formatOptionSummary = (item, options) => {
+    const selections=options?.choiceSelections || options || {};
+    const labels=[];
+    for (const group of item.customOptions || item.options || []) {
+      const selected=selections[group.key];
+      const values=group.multiple&&selected&&typeof selected==='object'?Object.entries(selected):selected?[[selected,1]]:[];
+      for (const [id,count] of values) {
+        const choice=group.choices.find(option=>String(option.id ?? option.name)===String(id));
+        if (choice) labels.push(`${count>1?`${count} × `:''}${choice.name}`);
+      }
+    }
+    if (options?.specialRequest) labels.push(options.specialRequest);
+    return labels.join(' · ');
   };
 
   const optionUnitPrice = (item, options) => (item?.priceCents || 0) + optionAddOnCents(item, options);
@@ -98,9 +108,8 @@
   const updateOptionTotal = () => {
     if (!selectedItem) return;
     const quantity = Math.min(99, Math.max(1, Number(document.getElementById('option-quantity').value) || 1));
-    const sideCount = Object.values(optionGroupCounts('sides')).reduce((total, count) => total + count, 0);
     const customSelections = Object.fromEntries(selectedItem.customOptions?.map(group => [group.key, group.multiple ? optionGroupCounts(group.key) : document.querySelector(`input[name="option-${group.key}"]:checked`)?.value || '']) || []);
-    const addOn = selectedItem.fanverse ? selectedItem.fanverse.sides[0].priceCents * sideCount : optionAddOnCents(selectedItem, { choiceSelections: customSelections });
+    const addOn = optionAddOnCents(selectedItem, { choiceSelections: customSelections });
     document.getElementById('item-options-total').textContent = formatMoney((selectedItem.priceCents + addOn) * quantity);
   };
 
@@ -201,14 +210,7 @@
     } else {
       cartItems.innerHTML = cart.map((entry, index) => {
         const item = menuItems.get(entry.id);
-        const optionSummary = item.fanverse
-          ? [
-            Object.entries(entry.options.flavors || {}).map(([name, count]) => `${count} × ${name}`).join(', '),
-            Object.entries(entry.options.sides || {}).map(([name, count]) => `${count} × ${name}`).join(', '),
-            entry.options.drink,
-            entry.options.specialRequest,
-          ].filter(Boolean).join(' · ')
-          : Object.entries(entry.options.choiceSelections || entry.options).filter(([key, value]) => key !== 'specialRequest' && value).map(([, value]) => typeof value === 'object' ? Object.entries(value).map(([name, count]) => `${count} × ${name}`).join(', ') : value).concat(entry.options.specialRequest || []).join(' · ');
+        const optionSummary = formatOptionSummary(item,entry.options);
         const lineTotal = optionUnitPrice(item, entry.options) * entry.quantity;
         return `<div class="order-cart-line">
           <div class="order-cart-line-main">
@@ -258,56 +260,27 @@
     specialRequest.hidden = false;
     document.getElementById('option-special-request').value = '';
 
-    if (item.fanverse) {
-      const addCountGroup = (key, label, subtitle, choices, required) => {
-        const section = document.createElement('section');
-        section.className = 'order-option-group';
-        const rows = choices.map(choice => {
-          const name = typeof choice === 'string' ? choice : choice.name;
-          const price = typeof choice === 'string' ? 0 : choice.priceCents;
-          return `<div class="order-option-choice" data-option-group-choice="${key}" data-option-name="${escapeHtml(name)}">
-            <div class="order-option-choice-name">${escapeHtml(name)}${price ? `<small>+${formatMoney(price)}</small>` : ''}</div>
-            <div class="order-option-stepper">
-              <button type="button" data-option-step="down" data-option-group="${key}" aria-label="Remove ${escapeHtml(name)}">−</button>
-              <span data-option-count aria-live="polite">0</span>
-              <button type="button" data-option-step="up" data-option-group="${key}" aria-label="Add ${escapeHtml(name)}">+</button>
-            </div>
-          </div>`;
-        }).join('');
-        section.innerHTML = `<div class="order-option-group-heading"><div><h3>${label}</h3><p>${subtitle}</p></div>${required ? '<span class="order-required">Required</span>' : ''}</div>${rows}`;
-        fields.append(section);
-      };
-
-      addCountGroup('flavors', 'Choice of Chicken Flavors', `Select at least one option · ${item.fanverse.portionCount} pieces`, item.fanverse.flavors, true);
-      addCountGroup('sides', 'Choice of Sides', 'Select at least one option', item.fanverse.sides, true);
-
-      const drinkGroup = document.createElement('section');
-      drinkGroup.className = 'order-option-group';
-      drinkGroup.innerHTML = `<div class="order-option-group-heading"><div><h3>Free Pepsi</h3><p>Select one</p></div><span class="order-required">Required</span></div>
-        <label class="order-drink-choice"><span>${escapeHtml(item.fanverse.drink)}</span><input type="radio" name="fanverse-drink" value="${escapeHtml(item.fanverse.drink)}" required></label>`;
-      fields.append(drinkGroup);
-    } else {
-      (item.customOptions || item.options).forEach(group => {
+    (item.customOptions || item.options || []).forEach(group => {
         const wrapper = document.createElement('section');
         wrapper.className = 'order-option-group';
-        const choices = group.choices.map(choice => typeof choice === 'string' ? { name: choice, priceCents: 0 } : choice);
+        const choices = group.choices || [];
         if (group.multiple) {
-          const rows = choices.map(choice => `<div class="order-option-choice" data-option-group-choice="${group.key}" data-option-name="${escapeHtml(choice.name)}"><div class="order-option-choice-name">${escapeHtml(choice.name)}${choice.priceCents ? `<small>+${formatMoney(choice.priceCents)}</small>` : ''}</div><div class="order-option-stepper"><button type="button" data-option-step="down" data-option-group="${group.key}" aria-label="Remove ${escapeHtml(choice.name)}">−</button><span data-option-count aria-live="polite">0</span><button type="button" data-option-step="up" data-option-group="${group.key}" aria-label="Add ${escapeHtml(choice.name)}">+</button></div></div>`).join('');
-          wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>Select up to ${group.maxCount} options</p></div></div>${rows}`;
+          const rows = choices.map(choice => `<div class="order-option-choice" data-option-group-choice="${escapeHtml(group.key)}" data-option-id="${escapeHtml(choice.id)}"><div class="order-option-choice-name">${escapeHtml(choice.name)}${choice.priceCents ? `<small>+${formatMoney(choice.priceCents)}</small>` : ''}</div><div class="order-option-stepper"><button type="button" data-option-step="down" data-option-group="${escapeHtml(group.key)}" aria-label="Remove ${escapeHtml(choice.name)}">−</button><span data-option-count aria-live="polite">0</span><button type="button" data-option-step="up" data-option-group="${escapeHtml(group.key)}" aria-label="Add ${escapeHtml(choice.name)}">+</button></div></div>`).join('');
+          wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>${group.minCount ? `Select at least ${group.minCount} · ` : ''}Select up to ${group.maxCount} option(s)</p></div>${group.required ? '<span class="order-required">Required</span>' : ''}</div>${rows || '<p class="small text-danger">No choices are available. Please contact the restaurant.</p>'}`;
           fields.append(wrapper);
           return;
         }
         const rows = choices.map((choice, index) => {
           const id = `option-${group.key}-${index}`;
+          const optionId = choice.id ?? choice.name;
           return `<label class="order-option-choice order-option-radio-choice" for="${id}">
             <span class="order-option-choice-name">${escapeHtml(choice.name)}${choice.priceCents ? `<small>+${formatMoney(choice.priceCents)}</small>` : ''}</span>
-            <input id="${id}" type="radio" name="option-${group.key}" value="${escapeHtml(choice.name)}" data-option-key="${escapeHtml(group.key)}" ${group.required && index === 0 ? 'required' : ''}>
+            <input id="${id}" type="radio" name="option-${group.key}" value="${escapeHtml(optionId)}" data-option-key="${escapeHtml(group.key)}" ${group.required && index === 0 ? 'required' : ''}>
           </label>`;
         }).join('');
-        wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>${group.required ? 'Select one option' : 'Select one or skip'}</p></div>${group.required ? '<span class="order-required">Required</span>' : ''}</div>${rows}`;
+        wrapper.innerHTML = `<div class="order-option-group-heading"><div><h3>${escapeHtml(group.label)}</h3><p>${group.required ? 'Select one option' : 'Select one or skip'}</p></div>${group.required ? '<span class="order-required">Required</span>' : ''}</div>${rows || '<p class="small text-danger">No choices are available. Please contact the restaurant.</p>'}`;
         fields.append(wrapper);
       });
-    }
 
     document.getElementById('option-quantity').value = '1';
     document.getElementById('option-quantity').max = '99';
@@ -324,12 +297,6 @@
       const direction = stepButton.dataset.optionStep === 'up' ? 1 : -1;
       const group = row.dataset.optionGroupChoice;
       let next = Math.max(0, current + direction);
-      if (group === 'flavors' && direction > 0) {
-        const total = [...document.querySelectorAll('[data-option-group-choice="flavors"] [data-option-count]')]
-          .reduce((sum, value) => sum + (Number(value.textContent) || 0), 0);
-        if (total >= selectedItem.fanverse.portionCount) return;
-      }
-      if (group === 'sides') next = Math.min(99, next);
       const customGroup = selectedItem.customOptions?.find(option => option.key === group && option.multiple);
       if (customGroup && direction > 0) {
         const total = Object.values(optionGroupCounts(group)).reduce((sum, value) => sum + value, 0);
@@ -395,32 +362,22 @@
   document.getElementById('item-options-form')?.addEventListener('submit', event => {
     event.preventDefault();
     if (!selectedItem || !event.currentTarget.reportValidity()) return;
-    let options = {};
-    if (selectedItem.fanverse) {
-      const flavors = optionGroupCounts('flavors');
-      const sides = optionGroupCounts('sides');
-      const flavorCount = Object.values(flavors).reduce((total, count) => total + count, 0);
-      const sideCount = Object.values(sides).reduce((total, count) => total + count, 0);
-      if (!flavorCount || flavorCount > selectedItem.fanverse.portionCount || !sideCount) {
-        document.getElementById('item-options-error').textContent = 'Choose at least one flavor and one side before adding this meal.';
-        showToast('Choose at least one flavor and one side before adding this meal.', 'warning');
+    const groups = selectedItem.customOptions || selectedItem.options || [];
+    const selections = {};
+    for (const group of groups) {
+      const value=group.multiple?optionGroupCounts(group.key):document.querySelector(`input[name="option-${group.key}"]:checked`)?.value || '';
+      const selectedCount=group.multiple?Object.values(value).reduce((sum,count)=>sum+(Number(count)||0),0):(value?1:0);
+      if (selectedCount < group.minCount) {
+        const message=`Choose at least ${group.minCount} option(s) for ${group.label}.`;
+        document.getElementById('item-options-error').textContent=message;
+        showToast(message,'warning');
         return;
       }
-      options = {
-        flavors,
-        sides,
-        drink: document.querySelector('input[name="fanverse-drink"]:checked')?.value || '',
-        specialRequest: document.getElementById('option-special-request').value.trim(),
-      };
-    } else {
-      const groups = selectedItem.customOptions || selectedItem.options;
-      const selections = {};
-      for (const group of groups) selections[group.key] = group.multiple ? optionGroupCounts(group.key) : document.querySelector(`input[name="option-${group.key}"]:checked`)?.value || '';
-      if (selectedItem.customOptions?.length) options.choiceSelections = selections;
-      else Object.assign(options, selections);
-      const specialRequest = document.getElementById('option-special-request').value.trim();
-      if (specialRequest) options.specialRequest = specialRequest;
+      selections[group.key]=value;
     }
+    const options = { choiceSelections: selections };
+    const specialRequest = document.getElementById('option-special-request').value.trim();
+    if (specialRequest) options.specialRequest = specialRequest;
     const quantity = Math.min(99, Math.max(1, Number(document.getElementById('option-quantity').value) || 1));
     addItem(selectedItem, quantity, options);
     optionModal.hide();

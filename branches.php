@@ -2,8 +2,13 @@
 require_once 'includes/auth_helpers.php';
 require_once 'includes/db.php';
 require_once 'includes/branch_helpers.php';
+require_once 'includes/audit_log.php';
 $pageTitle = 'Nomcha Branches';
 $branches = get_public_branches($pdo);
+if (!empty($_SESSION['user_id'])) {
+    try { write_audit_log($pdo, 'branch_finder_viewed', 'branch_finder', null, null, ['open_branch_count' => count($branches)]); }
+    catch (Throwable $auditError) { error_log('Nomcha branch finder audit log failed: ' . $auditError->getMessage()); }
+}
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"><link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">';
 require 'includes/header.php';
 ?>

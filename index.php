@@ -11,7 +11,7 @@ $items = [];
 $dbError = null;
 try {
     $items = $pdo->query(
-        "SELECT ranked.item_id,ranked.name,COALESCE(m.description,'') AS description,m.price,m.category_id,m.availability_scope,
+        "SELECT ranked.item_id,ranked.name,COALESCE(m.description,'') AS description,m.price,m.category_id,
                 IF(m.image_data IS NOT NULL,CONCAT('menu-image.php?id=',m.item_id),m.image_url) AS image_url,ranked.sold
          FROM (SELECT oi.item_id,oi.item_name AS name,SUM(oi.quantity) AS sold
                FROM customer_order_items oi JOIN customer_orders o ON o.order_id=oi.order_id
@@ -19,30 +19,17 @@ try {
                  AND LOWER(o.status) NOT IN ('cancelled','rejected','failed')
                GROUP BY oi.item_id,oi.item_name ORDER BY sold DESC,oi.item_name ASC LIMIT 12) ranked
          LEFT JOIN menu_items m ON m.item_id=ranked.item_id
-         WHERE m.item_kind='item' AND m.is_available=1
+         WHERE m.is_available=1
            AND (m.publish_at IS NULL OR m.publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR))
          ORDER BY ranked.sold DESC,ranked.name ASC"
     )->fetchAll();
-    $optionRows = $pdo->prepare("SELECT oi.quantity,oi.options_json FROM customer_order_items oi JOIN customer_orders o ON o.order_id=oi.order_id WHERE oi.item_id <=> ? AND oi.item_name=? AND o.created_at>=DATE_SUB(NOW(),INTERVAL 2 MONTH) AND LOWER(o.status) NOT IN ('cancelled','rejected','failed') AND oi.options_json IS NOT NULL");
+    $optionRows = $pdo->prepare("SELECT oi.quantity,io.quantity AS option_quantity,io.option_name_snapshot FROM customer_order_item_options io JOIN customer_order_items oi ON oi.order_item_id=io.order_item_id JOIN customer_orders o ON o.order_id=oi.order_id WHERE oi.item_id <=> ? AND oi.item_name=? AND o.created_at>=DATE_SUB(NOW(),INTERVAL 2 MONTH) AND LOWER(o.status) NOT IN ('cancelled','rejected','failed')");
     foreach ($items as &$item) {
         $optionRows->execute([$item['item_id']!==null?(int)$item['item_id']:null,$item['name']]);
         $popularOptions=[];
-        foreach ($optionRows->fetchAll() as $orderLine) {
-            $selected=json_decode((string)$orderLine['options_json'],true);
-            if(!is_array($selected)) continue;
-            $collect=function(array $values) use (&$collect,&$popularOptions,$orderLine): void {
-                foreach($values as $key=>$value){
-                    if(in_array((string)$key,['specialRequest','special_request'],true)) continue;
-                    if(is_array($value)){
-                        foreach($value as $optionName=>$count){
-                            if(is_string($optionName)&&is_numeric($count)&&$count>0)$popularOptions[$optionName]=($popularOptions[$optionName]??0)+(int)$count*(int)$orderLine['quantity'];
-                            elseif(is_string($count)&&$count!=='')$popularOptions[$count]=($popularOptions[$count]??0)+(int)$orderLine['quantity'];
-                        }
-                        if(array_is_list($value))$collect($value);
-                    } elseif(is_string($value)&&$value!=='') $popularOptions[$value]=($popularOptions[$value]??0)+(int)$orderLine['quantity'];
-                }
-            };
-            $collect($selected);
+        foreach ($optionRows->fetchAll() as $selectedOption) {
+            $name=(string)$selectedOption['option_name_snapshot'];
+            if ($name!=='') $popularOptions[$name]=($popularOptions[$name]??0)+(int)$selectedOption['quantity']*(int)$selectedOption['option_quantity'];
         }
         arsort($popularOptions);$item['popular_options']=array_slice($popularOptions,0,3,true);
     }
@@ -154,7 +141,7 @@ HTML;
       <div class="favorites-slider" id="favorites-slider" tabindex="0" aria-label="Popular menu items from the last two months">
       <?php foreach ($items as $item): ?>
         <div class="favorite-slide">
-          <a href="<?= $item['availability_scope'] === 'item_only' ? 'order.php#order-category-' . (int)$item['category_id'] : 'menu.php' ?>" style="text-decoration: none;">
+          <a href="<?= 'order.php#order-category-' . (int)$item['category_id'] ?>" style="text-decoration: none;">
           <div class="card item-card h-100">
             <?php if (!empty($item['image_url'])): ?>
               <img src="<?= htmlspecialchars($item['image_url']) ?>" class="item-img" alt="<?= htmlspecialchars($item['name']) ?>">

@@ -3,6 +3,7 @@ require 'includes/auth_helpers.php';
 require 'includes/db.php';
 require_once 'includes/branch_helpers.php';
 require_customer($pdo);
+const ORDER_MAX_DISTANCE_KM = 25.0;
 
 $pageTitle = 'Order Online';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
@@ -19,98 +20,70 @@ $form = [
 		'phone' => '',
 		'delivery_address' => '',
 		'delivery_instructions' => '',
-		'pickup_location' => '',
 		'scheduled_for' => '',
 		'payment_method' => 'cash',
 		'address_id' => '',
 		'branch_id' => '',
 ];
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && ($_GET['fulfillment'] ?? '') === 'pickup') {
-		$form['fulfillment'] = 'pickup';
-		$pickupLocation = trim((string)($_GET['pickup_location'] ?? ''));
-		if (mb_strlen($pickupLocation) <= 255) {
-			$form['pickup_location'] = $pickupLocation;
-			foreach ($branches as $branch) if ($pickupLocation === $branch['address'] || $pickupLocation === $branch['name']) { $form['branch_id'] = (string)$branch['id']; $selectedBranch = $branch; break; }
-		}
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && in_array(($_GET['fulfillment']??''),['delivery','pickup'],true)) {
+		$form['fulfillment'] = (string)$_GET['fulfillment'];
+		$requestedBranch = filter_var($_GET['branch_id']??null,FILTER_VALIDATE_INT);
+		foreach ($branches as $branch) if ($requestedBranch && (int)$requestedBranch === (int)$branch['id']) { $form['branch_id'] = (string)$branch['id']; $selectedBranch = $branch; break; }
 }
 $orderConfirmation = $_SESSION['order_confirmation'] ?? null;
 unset($_SESSION['order_confirmation']);
-$claimedVouchersQuery = $pdo->prepare("SELECT c.claim_id,p.name,p.discount_type,p.discount_value FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.user_id=? AND c.redeemed_at IS NULL AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at ORDER BY c.claimed_at DESC");
+$claimedVouchersQuery = $pdo->prepare("SELECT c.claim_id,p.name,p.discount_type,p.discount_value FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.user_id=? AND NOT EXISTS (SELECT 1 FROM promotion_redemptions r WHERE r.claim_id=c.claim_id) AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at ORDER BY c.claimed_at DESC");
 $claimedVouchersQuery->execute([(int)$_SESSION['user_id']]);
 $claimedVouchers = $claimedVouchersQuery->fetchAll();
 
-function orderItemOptions(string $name): array {
-	if (in_array($name, ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
-		return [[
-			'key' => 'glaze',
-			'label' => 'Choose a glaze',
-			'required' => true,
-			'choices' => array_map(static fn($value) => ['name' => $value, 'priceCents' => 0], ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'Golden Crunch', 'Snow Cheese']),
-		]];
+function orderItemOptionGroups(PDO $pdo, int $itemId): array {
+	$query = $pdo->prepare("SELECT ig.item_option_group_id,ig.label,ig.min_selections,ig.max_selections,c.option_id,COALESCE(o.name,source_item.name) AS option_name,c.price_adjustment
+		FROM menu_item_option_groups ig
+		LEFT JOIN menu_item_option_choices c ON c.item_option_group_id=ig.item_option_group_id
+		LEFT JOIN menu_options o ON o.option_id=c.option_id AND o.option_group_id=ig.option_group_id AND o.is_available=1
+		LEFT JOIN menu_items source_item ON source_item.item_id=o.source_item_id AND source_item.is_available=1 AND (source_item.publish_at IS NULL OR source_item.publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR))
+		WHERE ig.item_id=?
+		ORDER BY ig.sort_order,ig.item_option_group_id,c.sort_order,c.option_id");
+	$query->execute([$itemId]);
+	$groups = [];
+	foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$key = (string)$row['item_option_group_id'];
+		if (!isset($groups[$key])) $groups[$key] = [
+			'key' => $key,
+			'label' => $row['label'],
+			'required' => (int)$row['min_selections'] > 0,
+			'minCount' => (int)$row['min_selections'],
+			'multiple' => $row['max_selections'] === null || (int)$row['max_selections'] > 1 || (int)$row['min_selections'] > 1,
+			'maxCount' => $row['max_selections'] === null ? 99 : (int)$row['max_selections'],
+			'choices' => [],
+		];
+		if ($row['option_id'] !== null && $row['option_name'] !== null) $groups[$key]['choices'][] = [
+			'id' => (int)$row['option_id'],
+			'name' => $row['option_name'],
+			'priceCents' => (int)round((float)$row['price_adjustment'] * 100),
+		];
 	}
-	if (strcasecmp($name, 'Chapchae') === 0) {
-		return [[
-			'key' => 'spiceLevel',
-			'label' => 'Choose your spice level',
-			'required' => true,
-			'choices' => array_map(static fn($value) => ['name' => $value, 'priceCents' => 0], ['Regular', 'Mild Spicy', 'Spicy']),
-		]];
-	}
-	$chicken = preg_match('/chicken|chikin|bonless|chix|bap bowl|poppers|sandwich|fish & chapchae|good for/i', $name) === 1;
-	$meal = preg_match('/meal|rice|bibimbowl|bap bowl|poppers|sandwich|snackwich|beef|chix|pork bbq|fish & chapchae|good for|fish n\s*[\'’] chix/i', $name) === 1;
-	if ((!$chicken && !$meal) || preg_match('/Fanverse Meal$/', $name)) return [];
-	$flavors = ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'YangNyeom', 'Snow Cheese', 'Golden Crunch'];
-	$groups = $chicken ? [[ 'key' => 'flavor', 'label' => 'Choice of Chicken Flavors', 'required' => true,
-		'choices' => array_map(static fn($v) => ['name' => $v, 'priceCents' => 0], $flavors) ]] : [];
-	if ($meal) {
-		$groups[] = ['key' => 'sides', 'label' => 'Choice of Sides', 'required' => false, 'multiple' => true, 'maxCount' => 9, 'choices' => [
-			['name' => 'Cheeseballs - Plain w/ Pizza Sauce (1pc)', 'priceCents' => 4700], ['name' => 'Cheeseballs - Snowcheese (1pc)', 'priceCents' => 4700], ['name' => 'Kimchi', 'priceCents' => 4700],
-		]];
-		$groups[] = ['key' => 'drink', 'label' => 'Choice of Drink', 'required' => true, 'choices' => [
-			['name' => 'Regular Iced Tea', 'priceCents' => 0], ['name' => 'Large Iced Tea', 'priceCents' => 4000],
-			['name' => 'Caramel Snow Ice Coffee Drink Upgrade', 'priceCents' => 9500], ['name' => 'Chocolate Snow Ice Coffee Drink Upgrade', 'priceCents' => 9500],
-		]];
-		$groups[] = ['key' => 'riceUpgrade', 'label' => 'Upgrade to Kimchi Rice', 'required' => false, 'choices' => [['name' => 'Kimchi Rice Upgrade', 'priceCents' => 5100]]];
-		$groups[] = ['key' => 'soup', 'label' => 'Add-ons', 'required' => false, 'choices' => [['name' => 'Add on Bulgogi Soup', 'priceCents' => 6800]]];
-	}
-	return $groups;
-}
-
-function resolveOrderItemOptions(PDO $pdo, ?string $savedOptions, string $name): array {
-	$groups = json_decode((string)$savedOptions, true);
-	if (!is_array($groups)) $groups = orderItemOptions($name);
-	$available = $pdo->prepare("SELECT name, price FROM menu_items WHERE name=? AND is_available=1 AND availability_scope IN ('option_only','item_and_option') AND (publish_at IS NULL OR publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR)) LIMIT 1");
-	foreach ($groups as &$group) {
-		$choices = [];
-		foreach (($group['choices'] ?? []) as $choice) {
-			$choiceName = is_array($choice) ? (string)($choice['name'] ?? '') : (string)$choice;
-			if ($choiceName === '') continue;
-			$available->execute([$choiceName]);
-			if ($row = $available->fetch()) $choices[] = ['name'=>$row['name'], 'priceCents'=>(int)round((float)($row['price'] ?? 0) * 100)];
-		}
-		$group['choices'] = $choices;
-	}
-	unset($group);
-	return $groups;
+	return array_values($groups);
 }
 
 function orderAddressLabel(array $address): string {
 	return implode(', ', array_filter([
 		$address['street_address'] ?? '', $address['barangay'] ?? '', $address['municipality'] ?? '',
-		$address['province'] ?? '', $address['zip_code'] ?? '',
+		$address['region'] ?? '', $address['zip_code'] ?? '',
 	], static fn($part): bool => trim((string)$part) !== ''));
 }
 
 if (!empty($_SESSION['user_id'])) {
 		try {
-				$profileQuery = $pdo->prepare('SELECT first_name, last_name, home_addr, mobileno FROM user_info WHERE user_id = ?');
+				$profileQuery = $pdo->prepare('SELECT first_name, last_name, phone FROM user_info WHERE user_id = ?');
 				$profileQuery->execute([(int)$_SESSION['user_id']]);
 				if ($profile = $profileQuery->fetch()) {
 						$form['customer_name'] = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? ''));
-						$form['phone'] = $profile['mobileno'] ?? '';
-						$form['delivery_address'] = $profile['home_addr'] ?? '';
+						$form['phone'] = $profile['phone'] ?? '';
 				}
-				$addressQuery = $pdo->prepare('SELECT address_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude, is_default FROM user_addresses WHERE user_id = ? ORDER BY is_default DESC, address_id DESC');
+				$addressQuery = $pdo->prepare("SELECT a.address_id,a.recipient_name,a.recipient_phone,a.street_address,b.name AS barangay,l.name AS municipality,r.name AS region,a.zip_code,a.latitude,a.longitude,a.is_default
+					FROM user_addresses a JOIN psgc_barangays b ON b.psgc_code=a.barangay_code JOIN psgc_localities l ON l.psgc_code=b.locality_code LEFT JOIN psgc_provinces p ON p.psgc_code=l.province_code JOIN psgc_regions r ON r.psgc_code=COALESCE(l.region_code,p.region_code)
+					WHERE a.user_id=? ORDER BY a.is_default DESC,a.address_id DESC");
 				$addressQuery->execute([(int)$_SESSION['user_id']]);
 				$savedAddresses = $addressQuery->fetchAll();
 				$defaultAddresses = array_values(array_filter($savedAddresses, static fn(array $row): bool => (int)$row['is_default'] === 1));
@@ -124,7 +97,7 @@ if (!empty($_SESSION['user_id'])) {
 						$selectedAddress = $savedAddresses[0];
 						$form['address_id'] = (string)$selectedAddress['address_id'];
 						$form['customer_name'] = $selectedAddress['recipient_name'];
-						$form['phone'] = $selectedAddress['mobile_no'] ?? $form['phone'];
+						$form['phone'] = $selectedAddress['recipient_phone'] ?? $form['phone'];
 						$form['delivery_address'] = orderAddressLabel($selectedAddress);
 				}
 		} catch (PDOException $ex) {
@@ -137,20 +110,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 		$form['fulfillment'] = in_array($form['fulfillment'], ['delivery', 'pickup'], true) ? $form['fulfillment'] : 'delivery';
 		if ($form['address_id'] !== '') {
-			$addressLookup = $pdo->prepare('SELECT address_id, recipient_name, mobile_no, street_address, province, municipality, barangay, zip_code, latitude, longitude FROM user_addresses WHERE user_id = ? AND address_id = ?');
+			$addressLookup = $pdo->prepare("SELECT a.address_id,a.recipient_name,a.recipient_phone,a.street_address,b.name AS barangay,l.name AS municipality,r.name AS region,a.zip_code,a.latitude,a.longitude
+				FROM user_addresses a JOIN psgc_barangays b ON b.psgc_code=a.barangay_code JOIN psgc_localities l ON l.psgc_code=b.locality_code LEFT JOIN psgc_provinces p ON p.psgc_code=l.province_code JOIN psgc_regions r ON r.psgc_code=COALESCE(l.region_code,p.region_code)
+				WHERE a.user_id=? AND a.address_id=?");
 			$addressLookup->execute([(int)$_SESSION['user_id'], (int)$form['address_id']]);
 			$selectedAddress = $addressLookup->fetch() ?: null;
 		}
 		if (!$selectedAddress) $errors[] = 'Choose a saved billing address.';
 		else {
 			$form['customer_name'] = $selectedAddress['recipient_name'];
-			$form['phone'] = $selectedAddress['mobile_no'] ?? '';
+			$form['phone'] = $selectedAddress['recipient_phone'] ?? '';
 			$form['delivery_address'] = orderAddressLabel($selectedAddress);
 			if ($form['fulfillment'] === 'delivery' && (trim((string)$selectedAddress['street_address']) === '' || !preg_match('/^\d{4}$/', (string)$selectedAddress['zip_code']))) $errors[] = 'Please complete the Address and ZIP code fields for this billing address before delivery.';
+			if ($selectedAddress['latitude'] === null || $selectedAddress['longitude'] === null) $errors[] = 'Add a map pin to your saved billing address to check the 25 km ordering range.';
 		}
 		foreach ($branches as $branch) if ((string)$branch['id'] === (string)$form['branch_id']) { $selectedBranch = $branch; break; }
-		if (!$selectedBranch || ($form['fulfillment'] === 'pickup' && empty($selectedBranch['pickup']))) $errors[] = 'Choose an available Nomcha branch.';
-		else $form['pickup_location'] = $selectedBranch['name'];
+		if (!$selectedBranch || ($form['fulfillment'] === 'pickup' && empty($selectedBranch['supports_pickup'])) || ($form['fulfillment'] === 'delivery' && empty($selectedBranch['supports_delivery']))) $errors[] = 'Choose a branch that offers the selected fulfillment option.';
 
 		if (!csrf_check($_POST['csrf'] ?? null)) {
 				$errors[] = 'Your session expired. Refresh the page and try again.';
@@ -163,9 +138,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 		if ($form['fulfillment'] === 'delivery' && (mb_strlen($form['delivery_address']) < 8 || mb_strlen($form['delivery_address']) > 500)) {
 				$errors[] = 'Enter a complete delivery address.';
-		}
-		if ($form['fulfillment'] === 'pickup' && (mb_strlen($form['pickup_location']) < 3 || mb_strlen($form['pickup_location']) > 255)) {
-				$errors[] = 'Enter the Nomcha pickup branch or location.';
 		}
 		if (mb_strlen($form['delivery_instructions']) > 500) {
 			$errors[] = 'Rider instructions must be 500 characters or fewer.';
@@ -210,8 +182,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$orderLines = [];
 		$subtotal = 0.0;
 		if (!$errors) {
-			$itemQuery = $pdo->prepare("SELECT item_id, name, price, customizations_json FROM menu_items WHERE item_id = ? AND item_kind = 'item' AND availability_scope IN ('item_only','item_and_option') AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))");
+			$itemQuery = $pdo->prepare("SELECT item_id, name, price FROM menu_items WHERE item_id=? AND is_available=1 AND (publish_at IS NULL OR publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR))");
 				foreach ($cart as $entry) {
+						if (!is_array($entry)) { $errors[] = 'One basket item is invalid. Review your basket and try again.'; break; }
 						$itemId = filter_var($entry['id'] ?? null, FILTER_VALIDATE_INT);
 						$quantity = filter_var($entry['quantity'] ?? null, FILTER_VALIDATE_INT);
 						if (!$itemId || !$quantity || $quantity < 1 || $quantity > 99) {
@@ -225,9 +198,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								break;
 						}
 
-						$options = [];
-						$addOnTotal = 0.0;
-						$optionConfig = resolveOrderItemOptions($pdo, $item['customizations_json'] ?? null, (string)$item['name']);
+						$selectedOptions = [];
+						$optionUnitTotal = 0.0;
+						$optionConfig = orderItemOptionGroups($pdo,(int)$item['item_id']);
 						$submittedOptions = is_array($entry['options'] ?? null) ? $entry['options'] : [];
 						$specialRequestValue = $submittedOptions['specialRequest'] ?? '';
 						if (!is_string($specialRequestValue) || mb_strlen($specialRequestValue) > 500) {
@@ -235,133 +208,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 							break;
 						}
 						$specialRequest = trim($specialRequestValue);
-						$fanverseMatch = preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch);
-						if ($fanverseMatch) {
-							$portionCount = (int)$bundleMatch[1];
-							$allowedFlavors = ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Nomcha YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'];
-							$allowedSides = [
-								'Fried Tteokbokki - BYN (8 sticks)',
-								'Fried Tteokbokki - Snowcheese (8 sticks)',
-								'Fried Tteokbokki - Honey (8 sticks)',
-								'Cheeseballs Plain with Pizza Sauce (8pcs)',
-								'Cheeseballs - Snowcheese (8pcs)',
-							];
-							$flavors = is_array($submittedOptions['flavors'] ?? null) ? $submittedOptions['flavors'] : [];
-							$sides = is_array($submittedOptions['sides'] ?? null) ? $submittedOptions['sides'] : [];
-							$flavorCount = 0;
-							$sideCount = 0;
-							foreach ($flavors as $name => $count) {
-								$count = filter_var($count, FILTER_VALIDATE_INT);
-								if (!in_array($name, $allowedFlavors, true) || $count === false || $count < 1) {
-									$errors[] = 'One chicken flavor selection is invalid.';
-									break;
+						$selection = is_array($submittedOptions['choiceSelections'] ?? null) ? $submittedOptions['choiceSelections'] : [];
+						foreach ($optionConfig as $group) {
+							$choicesById = [];
+							foreach ($group['choices'] as $choice) $choicesById[(string)$choice['id']] = $choice;
+							$value = $selection[$group['key']] ?? ($group['multiple'] ? [] : '');
+							$countTotal = 0;
+							$chosen = [];
+							if ($group['multiple']) {
+								if (!is_array($value)) { $errors[] = 'One item option selection is invalid.'; break; }
+								foreach ($value as $optionId => $count) {
+									$optionId = filter_var($optionId,FILTER_VALIDATE_INT);
+									$count = filter_var($count,FILTER_VALIDATE_INT);
+									$choice = $optionId ? ($choicesById[(string)$optionId] ?? null) : null;
+									if (!$choice || $count === false || $count < 1 || $count > 99) { $errors[] = 'One item option selection is invalid.'; break; }
+									$countTotal += $count;
+									$chosen[] = [$choice,$count];
 								}
-								$flavors[$name] = $count;
-								$flavorCount += $count;
-							}
-							foreach ($sides as $name => $count) {
-								$count = filter_var($count, FILTER_VALIDATE_INT);
-								if (!in_array($name, $allowedSides, true) || $count === false || $count < 1 || $count > 99) {
-									$errors[] = 'One side selection is invalid.';
-									break;
-								}
-								$sides[$name] = $count;
-								$sideCount += $count;
-							}
-							$drink = $submittedOptions['drink'] ?? '';
-							if ($flavorCount < 1 || $flavorCount > $portionCount) {
-								$errors[] = 'Select at least one chicken flavor and no more than ' . $portionCount . ' pieces.';
-							}
-							if ($sideCount < 1) {
-								$errors[] = 'Select at least one side for your Fanverse Meal.';
-							}
-							if ($drink !== 'Regular Pepsi (' . $portionCount . 'pcs)') {
-								$errors[] = 'Choose the included Pepsi for your Fanverse Meal.';
+							} elseif ($value !== '' && $value !== null) {
+								$optionId = filter_var($value,FILTER_VALIDATE_INT);
+								$choice = $optionId ? ($choicesById[(string)$optionId] ?? null) : null;
+								if (!$choice) $errors[] = 'One item option selection is invalid.';
+								else { $countTotal = 1; $chosen[] = [$choice,1]; }
 							}
 							if ($errors) break;
-							$options = [
-								'flavors' => $flavors,
-								'sides' => $sides,
-								'drink' => $drink,
-								'specialRequest' => $specialRequest,
-							];
-							$addOnTotal = $sideCount * 269.00;
-						} elseif ($optionConfig) {
-							$selection = is_array($submittedOptions['choiceSelections'] ?? null) ? $submittedOptions['choiceSelections'] : [];
-							if (!$optionConfig) { $errors[] = 'Options are not available for this item.'; break; }
-							foreach ($optionConfig as $group) {
-								$value = $selection[$group['key']] ?? '';
-								if (!empty($group['multiple'])) {
-									if (!is_array($value)) { $errors[] = 'One side selection is invalid.'; break; }
-									$countTotal = 0; $validCounts = [];
-									foreach ($value as $choiceName => $count) {
-										$choice = null; foreach ($group['choices'] as $candidate) if ($candidate['name'] === $choiceName) $choice = $candidate;
-										$count = filter_var($count, FILTER_VALIDATE_INT);
-										if (!$choice || $count === false || $count < 1) { $errors[] = 'One side selection is invalid.'; break; }
-										$validCounts[$choiceName] = $count; $countTotal += $count; $addOnTotal += ($choice['priceCents'] / 100) * $count;
-									}
-									if ($errors) break;
-									if ($countTotal > (int)$group['maxCount']) { $errors[] = 'Choose up to ' . (int)$group['maxCount'] . ' side options.'; break; }
-									if ($validCounts) $options[$group['key']] = $validCounts;
-									continue;
-								}
-								if ($group['required'] && !in_array($value, array_column($group['choices'], 'name'), true)) { $errors[] = 'Choose an option for ' . $group['label'] . '.'; break; }
-								if ($value !== '') {
-									$choice = null;
-									foreach ($group['choices'] as $candidate) if ($candidate['name'] === $value) $choice = $candidate;
-									if (!$choice) { $errors[] = 'One item option is invalid.'; break; }
-									$options[$group['key']] = $value;
-									$addOnTotal += $choice['priceCents'] / 100;
-								}
+							if ($countTotal < $group['minCount'] || $countTotal > $group['maxCount']) {
+								$errors[] = 'Choose ' . ($group['minCount'] > 0 ? 'at least ' . $group['minCount'] : 'up to ' . $group['maxCount']) . ' option(s) for ' . $group['label'] . '.';
+								break;
 							}
-							if ($errors) break;
-							if ($specialRequest !== '') $options['specialRequest'] = $specialRequest;
-						} elseif (in_array($item['name'], ['NTS Bonless Chikin', 'NTS Bonless Chikin & Rosébokki'], true)) {
-								$glaze = $submittedOptions['glaze'] ?? '';
-								$validGlazes = ['Soy Garlic', 'Spicy', 'BYN', 'Honey Citrus', 'Crunchy Garlic', 'Golden Crunch', 'Snow Cheese'];
-								if (!in_array($glaze, $validGlazes, true)) {
-										$errors[] = 'Choose a glaze for ' . $item['name'] . '.';
-										break;
-								}
-								$options['glaze'] = $glaze;
-								if ($specialRequest !== '') $options['specialRequest'] = $specialRequest;
-						} elseif ($specialRequest !== '') {
-								$options['specialRequest'] = $specialRequest;
+							foreach ($chosen as [$choice,$choiceCount]) {
+								$optionUnitTotal += ((float)$choice['priceCents'] / 100) * $choiceCount;
+								$selectedOptions[] = [
+									'option_id' => (int)$choice['id'],
+									'group_name' => $group['label'],
+									'option_name' => $choice['name'],
+									'unit_price_adjustment' => (float)$choice['priceCents'] / 100,
+									'quantity' => $choiceCount * $quantity,
+								];
+							}
 						}
-
-							$unitPrice = (float)$item['price'] + $addOnTotal;
-						$lineTotal = round($unitPrice * $quantity, 2);
+						if ($errors) break;
+						$unitPrice = (float)$item['price'];
+						$lineTotal = round(($unitPrice + $optionUnitTotal) * $quantity, 2);
 						$subtotal += $lineTotal;
 						$orderLines[] = [
 								'item_id' => (int)$item['item_id'],
 								'name' => $item['name'],
 								'unit_price' => $unitPrice,
+								'promotional_unit_price' => $unitPrice + $optionUnitTotal,
 								'quantity' => $quantity,
-								'options' => $options,
+								'special_request' => $specialRequest ?: null,
+								'options' => $selectedOptions,
+								'base_line_total' => round($unitPrice * $quantity,2),
 								'line_total' => $lineTotal,
 						];
 				}
 		}
 
 		$deliveryDistanceKm = 0.0;
-		if (!$errors && $form['fulfillment'] === 'delivery') {
+		if (!$errors) {
 			if (!$selectedAddress || $selectedAddress['latitude'] === null || $selectedAddress['longitude'] === null || !$selectedBranch) {
-				$errors[] = 'Choose a billing address with a map pin and a Nomcha branch to calculate delivery.';
+				$errors[] = 'Choose a saved billing address with a map pin and a Nomcha branch.';
 			} else {
 				$rad = static fn(float $value): float => $value * M_PI / 180;
 				$lat1 = (float)$selectedAddress['latitude']; $lat2 = (float)$selectedBranch['lat'];
 				$dLat = $rad($lat2 - $lat1); $dLng = $rad((float)$selectedBranch['lng'] - (float)$selectedAddress['longitude']);
 				$a = sin($dLat / 2) ** 2 + cos($rad($lat1)) * cos($rad($lat2)) * sin($dLng / 2) ** 2;
-				$deliveryDistanceKm = 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
+				$branchDistanceKm = 6371 * 2 * atan2(sqrt($a), sqrt(1 - $a));
+				if ($branchDistanceKm > ORDER_MAX_DISTANCE_KM) $errors[] = 'Choose a Nomcha branch within 25 km of your saved billing address for delivery or pickup.';
+				elseif ($form['fulfillment'] === 'delivery') $deliveryDistanceKm = $branchDistanceKm;
 			}
 		}
 		$deliveryFee = $form['fulfillment'] === 'pickup' ? 0.00 : round(30 + ceil($deliveryDistanceKm) * 10, 2);
 		$deliveryFreeForNewAccount = false;
 		if (!$errors && $form['fulfillment'] === 'delivery' && $subtotal >= 400) {
-			$accountAge = $pdo->prepare('SELECT created_at FROM user_credentials WHERE user_id = ?');
+			$accountAge = $pdo->prepare('SELECT created_at, (SELECT COUNT(*) FROM customer_orders WHERE user_id = user_credentials.user_id) AS order_count FROM user_credentials WHERE user_id = ?');
 			$accountAge->execute([(int)$_SESSION['user_id']]);
-			$createdAt = $accountAge->fetchColumn();
-			if ($createdAt && strtotime((string)$createdAt) > strtotime('-1 month')) {
+			$accountEligibility = $accountAge->fetch();
+			if ($accountEligibility && (int)$accountEligibility['order_count'] < 3 && strtotime((string)$accountEligibility['created_at']) > strtotime('-1 month')) {
 				$deliveryFee = 0.00;
 				$deliveryFreeForNewAccount = true;
 			}
@@ -372,12 +296,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			if ($claimId > 0 && $promoCode !== '') $errors[] = 'Choose either a voucher or a promo code.';
 			else {
 				$promoQuery = $claimId > 0
-					? $pdo->prepare("SELECT p.* FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.claim_id=? AND c.user_id=? AND c.redeemed_at IS NULL AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at")
-					: $pdo->prepare("SELECT * FROM promotions WHERE promo_code=? AND is_platform_voucher=0 AND status='active' AND NOW() BETWEEN starts_at AND ends_at");
+					? $pdo->prepare("SELECT p.*, (SELECT COUNT(*) FROM promotion_redemptions r WHERE r.promo_id=p.promo_id) AS redemption_count FROM promotion_claims c JOIN promotions p ON p.promo_id=c.promo_id WHERE c.claim_id=? AND c.user_id=? AND NOT EXISTS (SELECT 1 FROM promotion_redemptions r WHERE r.claim_id=c.claim_id) AND p.is_platform_voucher=1 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at")
+					: $pdo->prepare("SELECT p.*, (SELECT COUNT(*) FROM promotion_redemptions r WHERE r.promo_id=p.promo_id) AS redemption_count FROM promotions p WHERE p.promo_code=? AND p.is_platform_voucher=0 AND p.status='active' AND NOW() BETWEEN p.starts_at AND p.ends_at");
 				$claimId > 0 ? $promoQuery->execute([$claimId,(int)$_SESSION['user_id']]) : $promoQuery->execute([$promoCode]);
 				$promo = $promoQuery->fetch() ?: null;
 				if (!$promo) $errors[] = 'That voucher or promo code is invalid, expired, or already used.';
-				elseif ((int)($promo['usage_limit'] ?? 0) > 0 && (int)$promo['usage_count'] >= (int)$promo['usage_limit']) $errors[] = 'This offer has reached its redemption limit.';
+				elseif ($promo['usage_limit'] !== null && (int)$promo['redemption_count'] >= (int)$promo['usage_limit']) $errors[] = 'This offer has reached its redemption limit.';
 				elseif ((float)$subtotal < (float)$promo['minimum_spend']) $errors[] = 'This offer requires a minimum spend of ₱' . number_format((float)$promo['minimum_spend'],2) . '.';
 				elseif (!in_array((string)$promo['channel'],['','all',$form['payment_method']],true)) $errors[] = 'This offer is not available with the selected payment method.';
 				else {
@@ -388,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 					else if($promo['discount_type']==='percent') $discountAmount=min($eligibleSubtotal,$eligibleSubtotal*(float)$promo['discount_value']/100);
 					else if($promo['discount_type']==='fixed') $discountAmount=min($eligibleSubtotal,(float)$promo['discount_value']);
 					else {
-						$freeUnit=0.0; foreach($orderLines as $line) if(($promo['eligibility_scope']==='all'||in_array((int)$line['item_id'],$eligibleIds,true))&&$line['unit_price']>$freeUnit)$freeUnit=(float)$line['unit_price'];
+						$freeUnit=0.0; foreach($orderLines as $line) if(($promo['eligibility_scope']==='all'||in_array((int)$line['item_id'],$eligibleIds,true))&&$line['promotional_unit_price']>$freeUnit)$freeUnit=(float)$line['promotional_unit_price'];
 						$discountAmount=min($eligibleSubtotal,$freeUnit,(float)$promo['discount_value']>0?(float)$promo['discount_value']:$freeUnit);
 					}
 					if($promo['discount_type']==='percent'&&$promo['max_discount']!==null) $discountAmount=min($discountAmount,(float)$promo['max_discount']);
@@ -400,9 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				try {
 						$pdo->beginTransaction();
 						if($promo){
-							$locked=$pdo->prepare("SELECT promo_id,usage_limit,usage_count FROM promotions WHERE promo_id=? AND status='active' AND NOW() BETWEEN starts_at AND ends_at FOR UPDATE");$locked->execute([(int)$promo['promo_id']]);$lockedPromo=$locked->fetch();
-							if(!$lockedPromo||($lockedPromo['usage_limit']!==null&&(int)$lockedPromo['usage_count']>=(int)$lockedPromo['usage_limit']))throw new RuntimeException('Offer is no longer available.');
-							if($claimId){$claimLock=$pdo->prepare('SELECT redeemed_at FROM promotion_claims WHERE claim_id=? AND user_id=? FOR UPDATE');$claimLock->execute([$claimId,(int)$_SESSION['user_id']]);$claimRow=$claimLock->fetch();if(!$claimRow||$claimRow['redeemed_at']!==null)throw new RuntimeException('Voucher has already been used.');}
+							$locked=$pdo->prepare("SELECT promo_id,usage_limit FROM promotions WHERE promo_id=? AND status='active' AND NOW() BETWEEN starts_at AND ends_at FOR UPDATE");$locked->execute([(int)$promo['promo_id']]);$lockedPromo=$locked->fetch();
+							$usageQuery=$pdo->prepare('SELECT COUNT(*) FROM promotion_redemptions WHERE promo_id=?');$usageQuery->execute([(int)$promo['promo_id']]);$usageCount=(int)$usageQuery->fetchColumn();
+							if(!$lockedPromo||($lockedPromo['usage_limit']!==null&&$usageCount>=(int)$lockedPromo['usage_limit']))throw new RuntimeException('Offer is no longer available.');
+							if($claimId){$claimLock=$pdo->prepare('SELECT c.claim_id FROM promotion_claims c WHERE c.claim_id=? AND c.user_id=? AND NOT EXISTS (SELECT 1 FROM promotion_redemptions r WHERE r.claim_id=c.claim_id) FOR UPDATE');$claimLock->execute([$claimId,(int)$_SESSION['user_id']]);if(!$claimLock->fetchColumn())throw new RuntimeException('Voucher has already been used.');}
 						}
 						$userId = !empty($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 						$orderNumber = 'NC' . date('ymd') . strtoupper(bin2hex(random_bytes(3)));
@@ -410,9 +335,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						$pdo->prepare(
 								'INSERT INTO customer_orders
 								 (order_number, user_id, fulfillment, branch_id, customer_name, phone, delivery_address,
-									delivery_instructions, pickup_location, scheduled_for, payment_method,
-									subtotal, promo_id, promo_name_snapshot, discount_amount, delivery_fee, delivery_distance_km, total)
-									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+									delivery_instructions, scheduled_for, payment_method, subtotal,
+									delivery_fee, delivery_distance_km, total)
+									 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 						)->execute([
 								$orderNumber,
 								$userId,
@@ -422,23 +347,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 								$form['phone'],
 								$form['fulfillment'] === 'delivery' ? $form['delivery_address'] : null,
 								$form['fulfillment'] === 'delivery' && $form['delivery_instructions'] !== '' ? $form['delivery_instructions'] : null,
-								$form['fulfillment'] === 'pickup' ? $form['pickup_location'] : null,
 								$scheduledFor,
 								$form['payment_method'],
 								$subtotal,
-								$promo ? (int)$promo['promo_id'] : null,
-								$promo ? (string)$promo['name'] : null,
-								$discountAmount,
 								$deliveryFee,
 								$form['fulfillment'] === 'delivery' ? round($deliveryDistanceKm, 2) : null,
 								$total,
 						]);
 						$orderId = (int)$pdo->lastInsertId();
 						$lineInsert = $pdo->prepare(
-								'INSERT INTO customer_order_items
-								 (order_id, item_id, item_name, unit_price, quantity, options_json, line_total)
-								 VALUES (?, ?, ?, ?, ?, ?, ?)'
+				'INSERT INTO customer_order_items
+					 (order_id, item_id, item_name, unit_price, quantity, special_request)
+					 VALUES (?, ?, ?, ?, ?, ?)'
 						);
+				$optionInsert = $pdo->prepare('INSERT INTO customer_order_item_options(order_item_id,option_id,group_name_snapshot,option_name_snapshot,unit_price_adjustment,quantity) VALUES(?,?,?,?,?,?)');
 						foreach ($orderLines as $line) {
 								$lineInsert->execute([
 										$orderId,
@@ -446,15 +368,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 										$line['name'],
 										$line['unit_price'],
 										$line['quantity'],
-										$line['options'] ? json_encode($line['options'], JSON_UNESCAPED_UNICODE) : null,
-										$line['line_total'],
+								$line['special_request'],
 								]);
+								$orderItemId=(int)$pdo->lastInsertId();
+								foreach ($line['options'] as $option) {
+								$optionInsert->execute([$orderItemId,$option['option_id'],$option['group_name'],$option['option_name'],$option['unit_price_adjustment'],$option['quantity']]);
+								}
 						}
 						if($promo){
 							$termsSnapshot = json_encode(['discount_type'=>$promo['discount_type'],'discount_value'=>(float)$promo['discount_value'],'max_discount'=>$promo['max_discount']===null?null:(float)$promo['max_discount'],'minimum_spend'=>(float)$promo['minimum_spend'],'eligibility_scope'=>$promo['eligibility_scope'],'channel'=>$promo['channel'],'starts_at'=>$promo['starts_at'],'ends_at'=>$promo['ends_at']], JSON_UNESCAPED_UNICODE);
-							$pdo->prepare('INSERT INTO promotion_redemptions(promo_id,order_id,user_id,claim_id,code_used,promo_name_snapshot,promo_terms_snapshot,order_subtotal,discount_amount) VALUES(?,?,?,?,?,?,?,?,?)')->execute([(int)$promo['promo_id'],$orderId,(int)$_SESSION['user_id'],$claimId?:null,$promoCode?:null,(string)$promo['name'],$termsSnapshot,$subtotal,$discountAmount]);
-							$pdo->prepare('UPDATE promotions SET usage_count=usage_count+1 WHERE promo_id=?')->execute([(int)$promo['promo_id']]);
-							if($claimId)$pdo->prepare('UPDATE promotion_claims SET redeemed_at=NOW() WHERE claim_id=? AND user_id=?')->execute([$claimId,(int)$_SESSION['user_id']]);
+							$pdo->prepare('INSERT INTO promotion_redemptions(promo_id,order_id,user_id,claim_id,code_used,promo_name_snapshot,promo_terms_snapshot,discount_amount) VALUES(?,?,?,?,?,?,?,?)')->execute([(int)$promo['promo_id'],$orderId,(int)$_SESSION['user_id'],$claimId?:null,$promoCode?:null,(string)$promo['name'],$termsSnapshot,$discountAmount]);
 						}
 						$pdo->commit();
 						$_SESSION['order_confirmation'] = [
@@ -486,8 +409,8 @@ try {
 				 FROM menu_categories ORDER BY sort_order, category_id'
 		)->fetchAll();
 		$allItems = $pdo->query(
-				 "SELECT item_id, category_id, name, description, price, IF(image_data IS NOT NULL, CONCAT('menu-image.php?id=', item_id), image_url) AS image_url, customizations_json
-					 FROM menu_items WHERE item_kind = 'item' AND availability_scope IN ('item_only','item_and_option') AND is_available = 1 AND (publish_at IS NULL OR publish_at <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) ORDER BY sort_order, item_id"
+				 "SELECT item_id, category_id, name, description, price, IF(image_data IS NOT NULL, CONCAT('menu-image.php?id=', item_id), image_url) AS image_url
+					 FROM menu_items WHERE is_available=1 AND (publish_at IS NULL OR publish_at<=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 8 HOUR)) ORDER BY sort_order,item_id"
 		)->fetchAll();
 		foreach ($allCategories as $category) {
 				if ($category['parent_id'] === null) {
@@ -502,22 +425,7 @@ try {
 		}
 		foreach ($allItems as $item) {
 				$itemsByCategory[$item['category_id']][] = $item;
-				$customOptions = resolveOrderItemOptions($pdo, $item['customizations_json'] ?? null, (string)$item['name']);
-				$fanverse = null;
-				if (preg_match('/^([0-9]+)pc Chikin Rack Fanverse Meal$/', $item['name'], $bundleMatch)) {
-					$fanverse = [
-						'portionCount' => (int)$bundleMatch[1],
-						'flavors' => ['Soy Garlic', 'Spicy', 'Honey Citrus', 'Crunchy Garlic', 'Nomcha YangNyeom', 'Snow Cheese', 'Golden Crunch Chikin without Gravy', 'Golden Crunch Chikin with Gravy'],
-						'sides' => [
-							['name' => 'Fried Tteokbokki - BYN (8 sticks)', 'priceCents' => 26900],
-							['name' => 'Fried Tteokbokki - Snowcheese (8 sticks)', 'priceCents' => 26900],
-							['name' => 'Fried Tteokbokki - Honey (8 sticks)', 'priceCents' => 26900],
-							['name' => 'Cheeseballs Plain with Pizza Sauce (8pcs)', 'priceCents' => 26900],
-							['name' => 'Cheeseballs - Snowcheese (8pcs)', 'priceCents' => 26900],
-						],
-						'drink' => 'Regular Pepsi (' . (int)$bundleMatch[1] . 'pcs)',
-					];
-				}
+				$customOptions = orderItemOptionGroups($pdo,(int)$item['item_id']);
 				$menuData[] = [
 						'id' => (int)$item['item_id'],
 						'name' => $item['name'],
@@ -526,7 +434,6 @@ try {
 						'description' => $item['description'],
 						'options' => [],
 						'customOptions' => $customOptions,
-						'fanverse' => $fanverse,
 				];
 		}
 		$hasOrderItems = static fn(int $categoryId): bool => !empty($itemsByCategory[$categoryId]);
@@ -551,13 +458,14 @@ $orderHistoryError = null;
 if ($viewOrders) {
 		try {
 				$historyQuery = $pdo->prepare(
-						 "SELECT o.order_id, o.order_number, o.fulfillment, o.subtotal, o.delivery_fee, o.delivery_distance_km,
-						 o.discount_amount, o.total, o.status, o.payment_status, o.created_at, o.scheduled_for, COALESCE(o.promo_name_snapshot, p.name) AS promo_name,
+						 "SELECT o.order_id,o.order_number,o.fulfillment,o.subtotal,o.delivery_fee,o.delivery_distance_km,
+						 r.discount_amount,o.total,o.status,o.payment_status,o.created_at,o.scheduled_for,COALESCE(r.promo_name_snapshot,p.name) AS promo_name,
 						 TIMESTAMPDIFF(SECOND, COALESCE((SELECT MAX(a.created_at) FROM staff_order_actions a WHERE a.order_id=o.order_id AND a.to_status='out_for_delivery'), o.created_at), NOW()) AS delivery_elapsed_seconds,
-						 (SELECT GROUP_CONCAT(CONCAT(i.quantity, ' x ', i.item_name) ORDER BY i.order_item_id SEPARATOR ' · ')
+						 (SELECT GROUP_CONCAT(CONCAT(i.quantity,' x ',i.item_name,COALESCE((SELECT CONCAT(' (',GROUP_CONCAT(CONCAT(q.quantity,' × ',q.option_name_snapshot) ORDER BY q.order_item_option_id SEPARATOR ', '),')') FROM customer_order_item_options q WHERE q.order_item_id=i.order_item_id),'')) ORDER BY i.order_item_id SEPARATOR ' · ')
 						  FROM customer_order_items i WHERE i.order_id = o.order_id) AS item_summary
 						 FROM customer_orders o
-						 LEFT JOIN promotions p ON p.promo_id = o.promo_id
+						 LEFT JOIN promotion_redemptions r ON r.order_id=o.order_id
+						 LEFT JOIN promotions p ON p.promo_id=r.promo_id
 						 WHERE o.user_id = ?
 						 ORDER BY o.created_at DESC LIMIT 50"
 				);
@@ -586,7 +494,7 @@ require 'includes/header.php';
 					<h2 class="h4 mb-1">Order request received</h2>
 					<p class="mb-1">Reference <strong><?= e($orderConfirmation['number']) ?></strong>. Nomcha will contact you to confirm availability<?= $orderConfirmation['fulfillment'] === 'delivery' ? ' and delivery coverage' : ' and pickup timing' ?>.</p>
 					<p class="mb-1">Items: <strong>₱<?= number_format((float)$orderConfirmation['subtotal'], 2) ?></strong><?php if(($orderConfirmation['discount']??0)>0):?> · <?=e((string)($orderConfirmation['promo_name']??'Promo / voucher'))?> discount: <strong>−₱<?=number_format((float)$orderConfirmation['discount'],2)?></strong><?php endif;?><?php if($orderConfirmation['fulfillment']==='delivery'): ?> · Delivery fee: <strong>₱<?=number_format((float)$orderConfirmation['delivery_fee'],2)?></strong><?php endif; ?> · Estimated total: <strong>₱<?=number_format((float)$orderConfirmation['total'],2)?></strong>. No online payment was taken.</p>
-					<?php if (!empty($orderConfirmation['delivery_free_new_account'])): ?><p class="small mb-0">Free delivery applied: new accounts under one month old receive free delivery on delivery orders with at least ₱400 in items.</p><?php endif; ?>
+					<?php if (!empty($orderConfirmation['delivery_free_new_account'])): ?><p class="small mb-0">Free delivery applied: accounts under one month old receive this offer on their first three orders with at least ₱400 in items for delivery.</p><?php endif; ?>
 				</div>
 			</div>
 		</section>
@@ -769,7 +677,7 @@ require 'includes/header.php';
 							<div><span>Item subtotal</span><strong id="cart-subtotal">₱0.00</strong></div>
 							<div class="order-fee-row"><span>Delivery fee</span><span id="delivery-fee-label">Choose address and branch</span></div>
 						</div>
-						<p class="order-helper">Free delivery applies automatically to delivery orders with at least ₱400 in items for accounts less than one month old.</p>
+						<p class="order-helper">Free delivery applies automatically to an account’s first three delivery orders with at least ₱400 in items, when placed within one month of signup.</p>
 
 						<fieldset class="order-form-section">
 							<legend>Voucher or promo code</legend>
@@ -787,7 +695,7 @@ require 'includes/header.php';
 						<input type="hidden" name="branch_id" id="branch-id" value="<?=e($form['branch_id'])?>">
 						<div>
 							<label class="form-label">Billing address</label>
-			<div class="order-address-list" role="radiogroup" aria-label="Choose a saved billing address"><?php foreach($savedAddresses as $saved): ?><label class="order-address-option <?= (string)$saved['address_id']===(string)$form['address_id']?'selected':'' ?>"><input type="radio" name="address_id" value="<?=(int)$saved['address_id']?>" data-lat="<?=e((string)$saved['latitude'])?>" data-lng="<?=e((string)$saved['longitude'])?>" data-name="<?=e($saved['recipient_name'])?>" data-mobile="<?=e($saved['mobile_no'])?>" data-address="<?=e(orderAddressLabel($saved))?>" <?= (string)$saved['address_id']===(string)$form['address_id']?'checked':'' ?> required><span><strong>Name:</strong> <?=e($saved['recipient_name'])?><br><strong>Address:</strong> <?=e(orderAddressLabel($saved))?><br><strong>Mobile number:</strong> <?=e($saved['mobile_no'])?><?php if(trim((string)$saved['street_address'])==='' || !preg_match('/^\d{4}$/',(string)$saved['zip_code'])): ?><br><small class="text-danger">Complete Address and ZIP code in Billing Address to enable delivery.</small><?php endif; ?></span></label><?php endforeach; ?></div>
+			<div class="order-address-list" role="radiogroup" aria-label="Choose a saved billing address"><?php foreach($savedAddresses as $saved): ?><label class="order-address-option <?= (string)$saved['address_id']===(string)$form['address_id']?'selected':'' ?>"><input type="radio" name="address_id" value="<?=(int)$saved['address_id']?>" data-lat="<?=e((string)$saved['latitude'])?>" data-lng="<?=e((string)$saved['longitude'])?>" data-name="<?=e($saved['recipient_name'])?>" data-mobile="<?=e($saved['recipient_phone'])?>" data-address="<?=e(orderAddressLabel($saved))?>" <?= (string)$saved['address_id']===(string)$form['address_id']?'checked':'' ?> required><span><strong>Name:</strong> <?=e($saved['recipient_name'])?><br><strong>Address:</strong> <?=e(orderAddressLabel($saved))?><br><strong>Mobile number:</strong> <?=e($saved['recipient_phone'])?><?php if(trim((string)$saved['street_address'])==='' || !preg_match('/^\d{4}$/',(string)$saved['zip_code'])): ?><br><small class="text-danger">Complete Address and ZIP code in Billing Address to enable delivery.</small><?php endif; ?></span></label><?php endforeach; ?></div>
 							<?php if(!$savedAddresses): ?><p class="order-helper">Add a saved billing address before placing an order. <a href="billing-address.php">Manage addresses</a></p><?php endif; ?>
 							<div id="selected-address-summary" class="order-selected-address"></div>
 						</div>
@@ -866,7 +774,7 @@ require 'includes/header.php';
 	</div>
 </div>
 
-<div class="modal fade" id="branch-picker-modal" tabindex="-1" aria-labelledby="branch-picker-title" aria-hidden="true">
+<div class="modal fade" id="branch-picker-modal" data-max-distance-km="<?=ORDER_MAX_DISTANCE_KM?>" tabindex="-1" aria-labelledby="branch-picker-title" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered modal-xl"><div class="modal-content">
 		<div class="modal-header"><h2 class="modal-title h4" id="branch-picker-title">Choose a Nomcha branch</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
 		<div class="modal-body"><label for="branch-picker-search" class="form-label">Search branches</label><input id="branch-picker-search" class="form-control mb-2" type="search" placeholder="Type a branch, city, or address" autocomplete="off"><div id="branch-picker-results" class="order-branch-results mb-3" role="listbox" aria-label="Branch search results"></div><div id="order-branch-map" class="order-branch-map" aria-label="Map of Nomcha branches"></div><p class="branch-map-credit">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p></div>

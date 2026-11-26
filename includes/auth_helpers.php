@@ -45,6 +45,13 @@ function require_role(PDO $pdo, array $roles): void {
     $role = current_role($pdo);
     if ($role === null) {
         $_SESSION['flash_toasts'][] = ['kind' => 'warning', 'text' => 'Please log in first to access that page.'];
+        if (basename((string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)) === 'order.php') {
+            $fulfillment=(string)($_GET['fulfillment']??'');
+            $branchId=filter_var($_GET['branch_id']??null,FILTER_VALIDATE_INT);
+            if (in_array($fulfillment,['delivery','pickup'],true)&&$branchId&&$branchId>0) {
+                $_SESSION['login_destination']='order.php?fulfillment='.$fulfillment.'&branch_id='.$branchId;
+            } else $_SESSION['login_destination']='order.php';
+        }
         header('Location: login.php');
         exit;
     }
@@ -62,21 +69,15 @@ function require_customer(PDO $pdo): void { require_role($pdo, ['customer']); }
 function require_staff_or_admin(PDO $pdo): void { require_role($pdo, ['staff', 'admin']); }
 function require_admin(PDO $pdo): void { require_role($pdo, ['admin']); }
 
-function account_password_matches(string $email, string $passwordHash, string $password): bool {
-    if ($password === '') return false;
-    if (password_verify($password, $passwordHash)) return true;
-    require_once __DIR__ . '/make_mailer.php';
-    $config = nomcha_config();
-    return ($config['allow_test_admin_login'] ?? false) === true
-        && in_array(strtolower($email), ['admin@admin', 'nomchaadmin@admin'], true)
-        && hash_equals('@NomchaAdmin2026', $password);
+function account_password_matches(string $passwordHash, string $password): bool {
+    return $password !== '' && password_verify($password, $passwordHash);
 }
 
 function verify_account_password(PDO $pdo, int $userId, string $password): bool {
-    $stmt = $pdo->prepare('SELECT email_addr, password FROM user_credentials WHERE user_id = ? AND is_active = 1');
+    $stmt = $pdo->prepare('SELECT password_hash FROM user_credentials WHERE user_id = ? AND is_active = 1');
     $stmt->execute([$userId]);
     $account = $stmt->fetch();
-    return is_array($account) && account_password_matches((string)$account['email_addr'], (string)$account['password'], $password);
+    return is_array($account) && account_password_matches((string)$account['password_hash'], $password);
 }
 
 function normalize_mobile(string $m): string {
@@ -84,20 +85,20 @@ function normalize_mobile(string $m): string {
 }
 
 function valid_login_email(string $email): bool {
-    return in_array($email, ['admin@admin', 'nomchaadmin@admin'], true) || (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
+    return (bool)filter_var($email, FILTER_VALIDATE_EMAIL);
 }
 
 function email_owned_by_another_account(PDO $pdo, string $email): bool {
     $userId = (int)($_SESSION['user_id'] ?? 0);
     $stmt = $userId > 0
-        ? $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email_addr)=LOWER(?) AND user_id<>? LIMIT 1')
-        : $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email_addr)=LOWER(?) LIMIT 1');
+        ? $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email)=LOWER(?) AND user_id<>? LIMIT 1')
+        : $pdo->prepare('SELECT 1 FROM user_credentials WHERE LOWER(email)=LOWER(?) LIMIT 1');
     $stmt->execute($userId > 0 ? [$email, $userId] : [$email]);
     return (bool)$stmt->fetchColumn();
 }
 
 function login_is_locked(PDO $pdo, string $email): bool {
-    $stmt = $pdo->prepare('SELECT locked_until IS NOT NULL AND locked_until > NOW() FROM login_attempts WHERE email_addr = ?');
+    $stmt = $pdo->prepare('SELECT locked_until IS NOT NULL AND locked_until > NOW() FROM login_attempts WHERE email = ?');
     $stmt->execute([$email]);
     return (bool)$stmt->fetchColumn();
 }
@@ -105,10 +106,10 @@ function login_is_locked(PDO $pdo, string $email): bool {
 function record_login_failure(PDO $pdo, string $email): bool {
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT IGNORE INTO login_attempts (email_addr, attempt_count) VALUES (?, 0)')->execute([$email]);
+        $pdo->prepare('INSERT IGNORE INTO login_attempts (email, attempt_count) VALUES (?, 0)')->execute([$email]);
         $stmt = $pdo->prepare(
             'SELECT attempt_count, locked_until, locked_until IS NOT NULL AND locked_until > NOW() AS is_locked
-             FROM login_attempts WHERE email_addr = ? FOR UPDATE'
+             FROM login_attempts WHERE email = ? FOR UPDATE'
         );
         $stmt->execute([$email]);
         $attempt = $stmt->fetch();
@@ -126,7 +127,7 @@ function record_login_failure(PDO $pdo, string $email): bool {
         $update = $pdo->prepare(
             'UPDATE login_attempts
                SET attempt_count = ?, locked_until = CASE WHEN ? = 1 THEN DATE_ADD(NOW(), INTERVAL ' . LOGIN_LOCK_MINUTES . ' MINUTE) ELSE NULL END
-             WHERE email_addr = ?'
+             WHERE email = ?'
         );
         $update->execute([$count, $locked ? 1 : 0, $email]);
         $pdo->commit();
@@ -138,7 +139,7 @@ function record_login_failure(PDO $pdo, string $email): bool {
 }
 
 function clear_login_failures(PDO $pdo, string $email): void {
-    $pdo->prepare('DELETE FROM login_attempts WHERE email_addr = ?')->execute([$email]);
+    $pdo->prepare('DELETE FROM login_attempts WHERE email = ?')->execute([$email]);
 }
 
 function validate_registration(array $d, string $password, string $confirm): array {
@@ -160,11 +161,11 @@ function validate_registration(array $d, string $password, string $confirm): arr
     if ($lat === false || $lat < -90 || $lat > 90) $err['latitude'] = 'Drop a pin on the map.';
     if ($lng === false || $lng < -180 || $lng > 180) $err['longitude'] = 'Drop a pin on the map.';
 
-    if (!filter_var($d['email_addr'], FILTER_VALIDATE_EMAIL) || strlen($d['email_addr']) > 255) {
-        $err['email_addr'] = 'Enter a valid email address.';
+    if (!filter_var($d['email'], FILTER_VALIDATE_EMAIL) || strlen($d['email']) > 255) {
+        $err['email'] = 'Enter a valid email address.';
     }
-    if (!preg_match(MOBILE_RE, $d['mobileno'])) {
-        $err['mobileno'] = 'Use a PH mobile number: 09XXXXXXXXX or +639XXXXXXXXX.';
+    if (!preg_match(MOBILE_RE, $d['phone'])) {
+        $err['phone'] = 'Use a PH mobile number: 09XXXXXXXXX or +639XXXXXXXXX.';
     }
     if (!preg_match(PASS_RE, $password) || strlen($password) > 72) {
         $err['password'] = 'Use 8 to 72 characters with a lowercase letter, an uppercase letter, a number, and a special character.';

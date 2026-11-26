@@ -14,4 +14,11 @@ ca.pem
 !/database/
 !/database/migrations/
 !/database/migrations/*.sql
+!/database/schema.sql
 drive-download-*.zip
+DEPLOYMENT.md
+EMAIL_SUBSCRIPTION_SETUP.md
+MAKE_OTP_SETUP.md
+README.md
+Nomcha_Feature_List.docx
+database\README.md

@@ -33,8 +33,8 @@
   };
 
   const directionsUrl = branch => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${branch.lat},${branch.lng}`)}`;
-  const takeoutUrl = branch => `order.php?fulfillment=pickup&pickup_location=${encodeURIComponent(branch.address)}`;
-  const pickupUrl = branch => `order.php?fulfillment=pickup&pickup_location=${encodeURIComponent(branch.address)}`;
+  const deliveryUrl = branch => `order.php?fulfillment=delivery&branch_id=${encodeURIComponent(branch.id)}`;
+  const pickupUrl = branch => `order.php?fulfillment=pickup&branch_id=${encodeURIComponent(branch.id)}`;
 
   const fillSelect = (select, firstLabel, options) => {
     const current = select.value;
@@ -83,8 +83,8 @@
         <p class="branch-card-detail"><i class="bi bi-clock" aria-hidden="true"></i><span>${escapeHtml(branch.schedule || 'Hours not listed; contact the branch to confirm.')}</span></p>
         ${branch.phone ? `<p class="branch-card-detail"><i class="bi bi-telephone" aria-hidden="true"></i><a href="tel:${escapeHtml(branch.phone.replace(/[^+\d]/g, ''))}">${escapeHtml(branch.phone)}</a></p>` : ''}
         <div class="branch-card-actions">
-          ${branch.takeOut ? `<a class="btn btn-order" href="${takeoutUrl(branch)}" aria-label="Order takeout from ${escapeHtml(branch.name)}">Take Out</a>` : '<span class="btn btn-order disabled" aria-disabled="true">Take Out</span>'}
-          ${branch.pickup ? `<a class="btn btn-branch-pickup" href="${pickupUrl(branch)}" aria-label="Order pickup from ${escapeHtml(branch.name)}">Pick-Up</a>` : '<span class="btn btn-branch-pickup disabled" aria-disabled="true">Pick-Up</span>'}
+          ${branch.supports_delivery ? `<a class="btn btn-order" href="${deliveryUrl(branch)}" aria-label="Order delivery from ${escapeHtml(branch.name)}">Delivery</a>` : '<span class="btn btn-order disabled" aria-disabled="true">Delivery</span>'}
+          ${branch.supports_pickup ? `<a class="btn btn-branch-pickup" href="${pickupUrl(branch)}" aria-label="Order pickup from ${escapeHtml(branch.name)}">Pick-Up</a>` : '<span class="btn btn-branch-pickup disabled" aria-disabled="true">Pick-Up</span>'}
           <a class="branch-directions" href="${directionsUrl(branch)}" target="_blank" rel="noopener noreferrer">Get directions <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a>
         </div>
       </article>`).join('');

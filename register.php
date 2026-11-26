@@ -12,7 +12,7 @@ if ($registrationSuccess) unset($_SESSION['registration_success_pending']);
 $errors = [];
 $notice = $_SESSION['registration_notice'] ?? null;
 unset($_SESSION['registration_notice']);
-$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'region_code' => '', 'province_code' => '', 'municipality_code' => '', 'barangay_code' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email_addr' => '', 'mobileno' => ''];
+$old = ['first_name' => '', 'middle_name' => '', 'last_name' => '', 'recipient_name' => '', 'street_address' => '', 'region_code' => '', 'municipality_code' => '', 'barangay_code' => '', 'zip_code' => '', 'latitude' => '', 'longitude' => '', 'email' => '', 'phone' => ''];
 $password = $confirm = '';
 $verifying = !empty($_SESSION['registration_challenge_id']);
 
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $oldId = (int)($_SESSION['registration_challenge_id'] ?? 0);
         $email = (string)($_SESSION['registration_email'] ?? '');
         try {
-            $stmt = $pdo->prepare('SELECT registration_data FROM auth_otp_challenges WHERE challenge_id = ? AND email_addr = ? AND purpose = ?');
+            $stmt = $pdo->prepare('SELECT registration_data FROM auth_otp_challenges WHERE challenge_id = ? AND email = ? AND purpose = ?');
             $stmt->execute([$oldId, $email, 'registration']);
             $data = json_decode((string)$stmt->fetchColumn(), true);
             if (!is_array($data)) throw new RuntimeException('Registration has expired. Please start again.');
@@ -62,13 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $data = json_decode((string)$challenge['registration_data'], true);
                     if (!is_array($data)) throw new RuntimeException('Registration data is unavailable.');
                     $pdo->beginTransaction();
-                    $pdo->prepare('INSERT INTO user_info (first_name, middle_name, last_name, home_addr, mobileno) VALUES (?, ?, ?, ?, ?)')
-                        ->execute([$data['first_name'], $data['middle_name'] ?: null, $data['last_name'], $data['street_address'], $data['mobileno']]);
+                    $pdo->prepare('INSERT INTO user_info(first_name,middle_name,last_name,phone) VALUES(?,?,?,?)')
+                        ->execute([$data['first_name'], $data['middle_name'] ?: null, $data['last_name'], $data['phone']]);
                     $userId = (int)$pdo->lastInsertId();
-                    $pdo->prepare('INSERT INTO user_credentials (user_id, email_addr, password) VALUES (?, ?, ?)')
+                    $pdo->prepare('INSERT INTO user_credentials(user_id,email,password_hash) VALUES(?,?,?)')
                         ->execute([$userId, $email, $data['password_hash']]);
-                    $pdo->prepare('INSERT INTO user_addresses (user_id, recipient_name, mobile_no, street_address, region_code, province, province_code, municipality, municipality_code, barangay, barangay_code, zip_code, latitude, longitude, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
-                        ->execute([$userId, $data['recipient_name'], $data['mobileno'], $data['street_address'], $data['region_code'] ?? null, $data['province'], $data['province_code'] ?? null, $data['municipality'], $data['municipality_code'] ?? null, $data['barangay'], $data['barangay_code'] ?? null, $data['zip_code'], $data['latitude'], $data['longitude']]);
+                    $pdo->prepare('INSERT INTO user_addresses(user_id,recipient_name,recipient_phone,street_address,barangay_code,zip_code,latitude,longitude,is_default) VALUES(?,?,?,?,?,?,?,?,1)')
+                        ->execute([$userId, $data['recipient_name'], $data['phone'], $data['street_address'], $data['barangay_code'], $data['zip_code'], $data['latitude'], $data['longitude']]);
                     $pdo->commit();
                     try {
                         send_customer_welcome_email($email, trim($data['first_name'] . ' ' . $data['last_name']));
@@ -93,21 +93,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $verifying = true;
     } else {
         foreach ($old as $k => $_) $old[$k] = trim($_POST[$k] ?? '');
-        $old['email_addr'] = strtolower($old['email_addr']);
+        $old['email'] = strtolower($old['email']);
         $password = $_POST['password'] ?? '';
         $confirm = $_POST['confirm_password'] ?? '';
         $errors = validate_registration($old, $password, $confirm);
         if (!$errors) {
             try {
-                $place = psgc_resolve($pdo, $old['region_code'], $old['province_code'], $old['municipality_code'], $old['barangay_code']);
-                if (!$place) $errors['province_code'] = 'Choose the matching province and city / municipality for this region.';
-                $s = $pdo->prepare('SELECT 1 FROM user_credentials WHERE email_addr = ?');
-                $s->execute([$old['email_addr']]);
-                if ($s->fetchColumn()) $errors['email_addr'] = 'This email is already registered.';
-                $mobile = normalize_mobile($old['mobileno']);
-                $s = $pdo->prepare('SELECT 1 FROM user_info WHERE mobileno = ?');
+                $place = psgc_resolve($pdo, $old['region_code'], $old['municipality_code'], $old['barangay_code']);
+                if (!$place) $errors['barangay_code'] = 'Choose a valid city / municipality and barangay for this region.';
+                $s = $pdo->prepare('SELECT 1 FROM user_credentials WHERE email = ?');
+                $s->execute([$old['email']]);
+                if ($s->fetchColumn()) $errors['email'] = 'This email is already registered.';
+                $mobile = normalize_mobile($old['phone']);
+                $s = $pdo->prepare('SELECT 1 FROM user_info WHERE phone = ?');
                 $s->execute([$mobile]);
-                if ($s->fetchColumn()) $errors['mobileno'] = 'This mobile number is already registered.';
+                if ($s->fetchColumn()) $errors['phone'] = 'This mobile number is already registered.';
 
                 if (!$errors) {
                     $data = [
@@ -116,22 +116,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'last_name' => $old['last_name'],
                         'recipient_name' => $old['recipient_name'],
                         'street_address' => $old['street_address'],
-                        'region_code' => $place['region_code'],
-                        'province' => $place['province'],
-                        'province_code' => $place['province_code'],
-                        'municipality' => $place['municipality'],
-                        'municipality_code' => $place['municipality_code'],
-                        'barangay' => $place['barangay'],
                         'barangay_code' => $place['barangay_code'],
                         'zip_code' => $old['zip_code'],
                         'latitude' => $old['latitude'],
                         'longitude' => $old['longitude'],
-                        'mobileno' => $mobile,
+                        'phone' => $mobile,
                         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
                     ];
-                    $challengeId = create_otp_challenge($pdo, $old['email_addr'], 'registration', null, $data);
+                    $challengeId = create_otp_challenge($pdo, $old['email'], 'registration', null, $data);
                     $_SESSION['registration_challenge_id'] = $challengeId;
-                    $_SESSION['registration_email'] = $old['email_addr'];
+                    $_SESSION['registration_email'] = $old['email'];
                     $_SESSION['registration_sent_at'] = time();
                     $verifying = true;
                     $_SESSION['registration_notice'] = 'We sent a six-digit verification code to your email. It expires in five minutes.';
@@ -150,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pageTitle = 'Register';
 $pageStyles = '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">';
-$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js"></script><script src="assets/js/psgc-select.js"></script><script src="assets/js/address-map.js"></script><script src="assets/js/otp-countdown.js"></script>';
+$pageScripts = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/auth.js?v=' . filemtime(__DIR__ . '/assets/js/auth.js') . '"></script><script src="assets/js/psgc-select.js?v=' . filemtime(__DIR__ . '/assets/js/psgc-select.js') . '"></script><script src="assets/js/address-map.js?v=' . filemtime(__DIR__ . '/assets/js/address-map.js') . '"></script><script src="assets/js/otp-countdown.js?v=' . filemtime(__DIR__ . '/assets/js/otp-countdown.js') . '"></script>';
 require 'includes/header.php';
 ?>
 
@@ -180,9 +174,9 @@ require 'includes/header.php';
         <form method="post" action="register.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
           <fieldset class="mb-4"><legend class="h5">Personal info</legend><div class="row">
-            <div class="col-md-4"><?php form_field('first_name', 'First name', 'text', $old['first_name'], $errors['first_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="given-name"'); ?></div>
-            <div class="col-md-4"><?php form_field('middle_name', 'Middle name (optional)', 'text', $old['middle_name'], $errors['middle_name'] ?? null, 'minlength="2" maxlength="100" autocomplete="additional-name"'); ?></div>
-            <div class="col-md-4"><?php form_field('last_name', 'Last name', 'text', $old['last_name'], $errors['last_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="family-name"'); ?></div>
+            <div class="col-md-4"><?php form_field('first_name', 'First name', 'text', $old['first_name'], $errors['first_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="given-name" placeholder="e.g. Juan"'); ?></div>
+            <div class="col-md-4"><?php form_field('middle_name', 'Middle name (optional)', 'text', $old['middle_name'], $errors['middle_name'] ?? null, 'minlength="2" maxlength="100" autocomplete="additional-name" placeholder="e.g. Santos"'); ?></div>
+            <div class="col-md-4"><?php form_field('last_name', 'Last name', 'text', $old['last_name'], $errors['last_name'] ?? null, 'required minlength="2" maxlength="100" autocomplete="family-name" placeholder="e.g. Dela Cruz"'); ?></div>
           </div></fieldset>
           <fieldset class="mb-4"><legend class="h5">Password</legend><div class="row">
             <div class="col-md-6">
@@ -194,16 +188,16 @@ require 'includes/header.php';
             <div class="col-md-6"><?php password_field('confirm_password', 'Confirm password', $confirm, $errors['confirm_password'] ?? null, 'required maxlength="72" autocomplete="new-password"'); ?></div>
           </div></fieldset>
           <fieldset class="mb-4"><legend class="h5">Contact info</legend><div class="row register-contact-row">
-            <div class="col-md-6"><?php form_field('email_addr', 'Email address', 'email', $old['email_addr'], $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?></div>
-            <div class="col-md-6"><?php form_field('mobileno', 'Mobile number', 'tel', $old['mobileno'], $errors['mobileno'] ?? null, 'required maxlength="13" inputmode="tel" placeholder="09XXXXXXXXX" pattern="(09\d{9}|\+639\d{9})" autocomplete="tel"'); ?></div>
+            <div class="col-md-6"><?php form_field('email', 'Email address', 'email', $old['email'], $errors['email'] ?? null, 'required maxlength="255" autocomplete="email" placeholder="e.g. juan@example.com"'); ?></div>
+            <div class="col-md-6"><?php form_field('phone', 'Mobile number', 'text', $old['phone'], $errors['phone'] ?? null, 'required maxlength="11" inputmode="numeric" data-digits-only data-ph-mobile pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" autocomplete="tel"'); ?></div>
           </div></fieldset>
           <fieldset class="mb-4"><legend class="h5">Billing address <small class="text-secondary">(default)</small></legend>
             <?php form_field('recipient_name', 'Recipient name', 'text', $old['recipient_name'], $errors['recipient_name'] ?? null, 'required maxlength="120" autocomplete="name" placeholder="e.g. Juan Dela Cruz"'); ?>
             <?php form_field('street_address', 'Unit/House Number and Street Name', 'text', $old['street_address'], $errors['street_address'] ?? null, 'required minlength="2" maxlength="255" autocomplete="address-line1" placeholder="Unit/House Number and Street Name"'); ?>
             <?php $psgc = psgc_form_state($pdo, $old); ?>
-            <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('province', $psgc['provinces'], $old['province_code'], $errors['province_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div></div><div class="row"><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
+            <div class="row"><div class="col-md-3"><?php psgc_select_field('region', $psgc['regions'], $old['region_code'], $errors['region_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('municipality', $psgc['localities'], $old['municipality_code'], $errors['municipality_code'] ?? null); ?></div><div class="col-md-3"><?php psgc_select_field('barangay', $psgc['barangays'], $old['barangay_code'], $errors['barangay_code'] ?? null); ?></div></div><div class="row"><div class="col-md-3"><?php form_field('zip_code', 'ZIP code', 'text', $old['zip_code'], $errors['zip_code'] ?? null, 'required maxlength="4" inputmode="numeric" pattern="[0-9]{4}" autocomplete="postal-code" placeholder="e.g. 1105"'); ?></div></div>
             <label class="form-label" for="address-map">Map pin location</label><div id="address-map" class="branch-map" style="height:320px;min-height:280px;position:relative"></div>
-            <div class="row mt-2"><div class="col-sm-6"><?php form_field('latitude', 'Latitude', 'number', $old['latitude'], $errors['latitude'] ?? null, 'required step="any" min="-90" max="90"'); ?></div><div class="col-sm-6"><?php form_field('longitude', 'Longitude', 'number', $old['longitude'], $errors['longitude'] ?? null, 'required step="any" min="-180" max="180"'); ?></div></div>
+            <input type="hidden" id="latitude" name="latitude" value="<?=e($old['latitude'])?>"><input type="hidden" id="longitude" name="longitude" value="<?=e($old['longitude'])?>">
           </fieldset>
           <button type="submit" class="btn btn-auth w-100 py-2 mt-2">Send verification code</button>
         </form>

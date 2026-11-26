@@ -23,19 +23,16 @@ unset(
 $loginWelcome = !empty($_SESSION['user_id']) && ($_GET['auth_success'] ?? '') === '1';
 if (!empty($_SESSION['user_id']) && !$loginWelcome) { header('Location: ' . (current_role($pdo) === 'admin' ? 'admin.php' : 'index.php')); exit; }
 
-$redirectCandidate = (string)($_POST['redirect'] ?? $_GET['redirect'] ?? '');
-$redirectTo = $redirectCandidate === 'order.php' ? 'order.php' : 'index.php';
-if ($redirectTo === 'index.php') {
+$redirectCandidate = (string)($_POST['redirect'] ?? $_GET['redirect'] ?? $_SESSION['login_destination'] ?? '');
+$redirectTo = 'index.php';
+if ($redirectCandidate === 'order.php') $redirectTo = 'order.php';
+else {
     $redirectPath = parse_url($redirectCandidate, PHP_URL_PATH);
     $redirectQuery = [];
     parse_str((string)parse_url($redirectCandidate, PHP_URL_QUERY), $redirectQuery);
-    $pickupLocation = trim((string)($redirectQuery['pickup_location'] ?? ''));
-    if ($redirectPath === 'order.php'
-        && ($redirectQuery['fulfillment'] ?? '') === 'pickup'
-        && $pickupLocation !== ''
-        && mb_strlen($pickupLocation) <= 255) {
-        $redirectTo = 'order.php?fulfillment=pickup&pickup_location=' . rawurlencode($pickupLocation);
-    }
+    $fulfillment=(string)($redirectQuery['fulfillment']??'');
+    $branchId=filter_var($redirectQuery['branch_id']??null,FILTER_VALIDATE_INT);
+    if ($redirectPath==='order.php'&&in_array($fulfillment,['delivery','pickup'],true)&&$branchId&&$branchId>0) $redirectTo='order.php?fulfillment='.$fulfillment.'&branch_id='.$branchId;
 }
 $errors  = [];
 $email   = '';
@@ -48,14 +45,14 @@ if ($loginWelcome) unset($_SESSION['login_destination']);
 $otpPending = !empty($_SESSION['login_otp_challenge_id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email    = strtolower(trim($_POST['email_addr'] ?? ''));
+    $email    = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
 
     if (!csrf_check($_POST['csrf'] ?? null)) {
         $errors['form'] = 'Session expired. Please try again.';
     } elseif (($_POST['action'] ?? '') === 'send_sample') {
         if (!valid_login_email($email) || strlen($email) > 255) {
-            $errors['email_addr'] = 'Enter a valid email address to receive the sample.';
+            $errors['email'] = 'Enter a valid email address to receive the sample.';
         } else {
             try {
                 send_sample_email($email);
@@ -73,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$challenge || (int)$challenge['user_id'] !== (int)($_SESSION['login_otp_user_id'] ?? 0)) {
                 $errors['form'] = 'That code is incorrect or expired. Request a new code and try again.';
             } else {
-                $user = $pdo->prepare('SELECT c.user_id,c.role,c.first_login_activation,i.first_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.user_id=? AND c.email_addr=? AND (c.is_active=1 OR c.first_login_activation=1)');
+                $user = $pdo->prepare('SELECT c.user_id,c.role,c.first_login_activation,i.first_name FROM user_credentials c JOIN user_info i ON i.user_id=c.user_id WHERE c.user_id=? AND c.email=? AND (c.is_active=1 OR c.first_login_activation=1)');
                 $user->execute([(int)$challenge['user_id'], (string)($_SESSION['login_otp_email'] ?? '')]);
                 $row = $user->fetch();
                 if (!$row) throw new RuntimeException('Account is unavailable.');
@@ -97,10 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['login_otp_challenge_id'], $_SESSION['login_otp_user_id'], $_SESSION['login_otp_email'], $_SESSION['login_otp_sent_at']);
         $otpPending = false;
     } elseif (($_POST['action'] ?? '') === 'send_login_otp') {
-        if (!valid_login_email($email) || strlen($email) > 255) $errors['email_addr'] = 'Enter a valid email address.';
+        if (!valid_login_email($email) || strlen($email) > 255) $errors['email'] = 'Enter a valid email address.';
         else {
             try {
-                $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email_addr=? AND (is_active=1 OR first_login_activation=1)');
+                $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email=? AND (is_active=1 OR first_login_activation=1)');
                 $stmt->execute([$email]);
                 $userId = (int)$stmt->fetchColumn();
                 if ($userId) {
@@ -116,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $otpPending = !empty($_SESSION['login_otp_challenge_id']);
     } else {
         if (!valid_login_email($email) || strlen($email) > 255) {
-            $errors['email_addr'] = 'Enter a valid email address.';
+            $errors['email'] = 'Enter a valid email address.';
         }
         if ($password === '') {
             $errors['password'] = 'Enter your password.';
@@ -128,18 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors['form'] = 'Too many login attempts, please try again later.';
                 } else {
                     $stmt = $pdo->prepare(
-                        'SELECT c.user_id, c.password, c.role, c.is_active, c.first_login_activation, i.first_name
+                        'SELECT c.user_id,c.password_hash,c.role,c.is_active,c.first_login_activation,i.first_name
                          FROM user_credentials c
                          JOIN user_info i ON i.user_id = c.user_id
-                         WHERE c.email_addr = ? LIMIT 1'
+                         WHERE c.email = ? LIMIT 1'
                     );
                     $stmt->execute([$email]);
                     $row  = $stmt->fetch();
-                    $hash = $row['password'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
+                    $hash = $row['password_hash'] ?? password_hash('dummy-value', PASSWORD_DEFAULT);
 
-                    if ($row && ((int)$row['is_active'] === 1 || (int)$row['first_login_activation'] === 1) && account_password_matches($email, $hash, $password)) {
+                    if ($row && ((int)$row['is_active'] === 1 || (int)$row['first_login_activation'] === 1) && account_password_matches($hash, $password)) {
                         if ((int)$row['first_login_activation'] === 1) $pdo->prepare('UPDATE user_credentials SET is_active=1,first_login_activation=0 WHERE user_id=? AND first_login_activation=1')->execute([(int)$row['user_id']]);
-                        $attemptStmt = $pdo->prepare('SELECT attempt_count FROM login_attempts WHERE email_addr=?');
+                        $attemptStmt = $pdo->prepare('SELECT attempt_count FROM login_attempts WHERE email=?');
                         $attemptStmt->execute([$email]);
                         $failedAttempts = (int)$attemptStmt->fetchColumn();
                         if ($failedAttempts < LOGIN_MAX_ATTEMPTS) {
@@ -200,12 +197,12 @@ require 'includes/header.php';
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>"><input type="hidden" name="redirect" value="<?= e($redirectTo) ?>">
         <?php form_field('otp', 'Six-digit sign-in code', 'text', '', $errors['otp'] ?? null, 'required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"'); ?>
         <button type="submit" name="action" value="verify_login_otp" class="btn btn-auth w-100 py-2">Verify and log in</button>
-      </form><form method="post" action="login.php" class="mt-2 d-flex justify-content-between"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="email_addr" value="<?=e((string)($_SESSION['login_otp_email']??''))?>"><input type="hidden" name="redirect" value="<?=e($redirectTo)?>"><button class="btn btn-link auth-link px-0" name="action" value="send_login_otp">Send another code</button><button class="btn btn-link text-secondary px-0" name="action" value="cancel_login_otp">Back to password login</button></form>
+      </form><form method="post" action="login.php" class="mt-2 d-flex justify-content-between"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><input type="hidden" name="email" value="<?=e((string)($_SESSION['login_otp_email']??''))?>"><input type="hidden" name="redirect" value="<?=e($redirectTo)?>"><button class="btn btn-link auth-link px-0" name="action" value="send_login_otp">Send another code</button><button class="btn btn-link text-secondary px-0" name="action" value="cancel_login_otp">Back to password login</button></form>
       <?php else: ?><form method="post" action="login.php">
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="redirect" value="<?= e($redirectTo) ?>">
 
-        <?php form_field('email_addr', 'Email address', 'text', $email, $errors['email_addr'] ?? null, 'required maxlength="255" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username"'); ?>
+        <?php form_field('email', 'Email address', 'text', $email, $errors['email'] ?? null, 'required maxlength="255" inputmode="email" autocapitalize="none" spellcheck="false" autocomplete="username"'); ?>
         <?php password_field('password', 'Password', $password, $errors['password'] ?? null, 'required maxlength="72" autocomplete="current-password"'); ?>
 
         <div class="text-end mb-3"><a href="forgot-password.php" class="auth-link small">Forgot password?</a></div>

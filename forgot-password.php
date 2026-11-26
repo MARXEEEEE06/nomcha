@@ -20,12 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $step = (string)($_POST['step'] ?? 'request');
         if ($step === 'request') {
-            $email = strtolower(trim($_POST['email_addr'] ?? ''));
+            $email = strtolower(trim($_POST['email'] ?? ''));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
-                $errors['email_addr'] = 'Enter a valid email address.';
+                $errors['email'] = 'Enter a valid email address.';
             } else {
                 try {
-                    $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email_addr = ? LIMIT 1');
+                    $stmt = $pdo->prepare('SELECT user_id FROM user_credentials WHERE email = ? LIMIT 1');
                     $stmt->execute([$email]);
                     $foundUser = $stmt->fetchColumn();
                     // Send the same code flow regardless of account existence; keep the result generic.
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = (string)($_SESSION['reset_email'] ?? '');
             $oldId = (int)($_SESSION['reset_challenge_id'] ?? 0);
             try {
-                $stmt = $pdo->prepare('SELECT user_id FROM auth_otp_challenges WHERE challenge_id = ? AND email_addr = ? AND purpose = ?');
+                $stmt = $pdo->prepare('SELECT user_id FROM auth_otp_challenges WHERE challenge_id = ? AND email = ? AND purpose = ?');
                 $stmt->execute([$oldId, $email, 'password_reset']);
                 $foundUser = $stmt->fetchColumn();
                 $_SESSION['reset_challenge_id'] = create_otp_challenge($pdo, $email, 'password_reset', $foundUser ? (int)$foundUser : null);
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors['form'] = 'If an account exists for this address, you can sign in using its current password.';
                 $stage = 'choice';
             } else {
-                $pdo->prepare('UPDATE user_credentials SET password = ? WHERE user_id = ?')
+        $pdo->prepare('UPDATE user_credentials SET password_hash=? WHERE user_id=?')
                     ->execute([password_hash($password, PASSWORD_DEFAULT), (int)$_SESSION['reset_verified_user_id']]);
                 auth_security_log($pdo, 'password_reset', (int)$_SESSION['reset_verified_user_id'], 'password_reset', 'password_changed');
                 unset($_SESSION['reset_challenge_id'], $_SESSION['reset_email'], $_SESSION['reset_sent_at'], $_SESSION['reset_verified_at'], $_SESSION['reset_verified_user_id'], $_SESSION['reset_change_password']);
@@ -149,7 +149,7 @@ require 'includes/header.php';
         <form method="post" action="forgot-password.php">
           <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
           <input type="hidden" name="step" value="request">
-          <?php form_field('email_addr', 'Email address', 'email', $email, $errors['email_addr'] ?? null, 'required maxlength="255" autocomplete="email"'); ?>
+          <?php form_field('email', 'Email address', 'email', $email, $errors['email'] ?? null, 'required maxlength="255" autocomplete="email"'); ?>
           <button type="submit" class="btn btn-auth w-100 py-2">Send verification code</button>
         </form>
       <?php elseif ($stage === 'verify'): ?>

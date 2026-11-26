@@ -15,9 +15,16 @@ include 'includes/header.php';
 				</div>
 			</div>
 		</div>
+		<a class="story-scroll-cue" href="#story-cover" aria-label="Scroll to the welcome banner">
+			<svg class="story-scroll-route" viewBox="0 0 56 150" aria-hidden="true" focusable="false">
+				<path d="M28 2v19c0 13-15 13-15 29v13m0 12v8c0 12 30 12 30 27v10" />
+				<path class="story-scroll-arrow" d="m34 130 9 9 9-9" />
+			</svg>
+			<span>Scroll to explore</span>
+		</a>
 	</section>
 
-	<section class="story-cover" aria-label="Welcome to Nomcha">
+	<section class="story-cover" id="story-cover" aria-label="Welcome to Nomcha">
 		<img src="assets/welcome-banner.png" alt="Welcome to Nomcha, with a crispy golden chicken drumstick" fetchpriority="high">
 		<img class="story-cover-chicken" src="assets/chicken.png" alt="" aria-hidden="true" fetchpriority="high">
 		<img class="story-cover-thunder story-cover-thunder-1" src="assets/thunder.png" alt="" aria-hidden="true">
